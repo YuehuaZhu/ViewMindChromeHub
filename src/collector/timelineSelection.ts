@@ -6,13 +6,13 @@ interface TimedRecord {
 }
 
 /**
- * 区间快选:选中锚点记录 + 所有时间更晚(更新)的记录 —— 对应「某时间点以后」。
- * 时间线默认最新在上,"之后" = timestamp >= 锚点。
+ * 区间快选:选中锚点记录 + 所有时间更早(更旧)的记录。
+ * 时间线最新在上,用户视角的「此条及之后」= 列表中此条往下 = 更旧 = timestamp <= 锚点。
  */
-export function selectThisAndNewer<T extends TimedRecord>(records: T[], anchorId: string): string[] {
+export function selectThisAndOlder<T extends TimedRecord>(records: T[], anchorId: string): string[] {
   const anchor = records.find((r) => r.id === anchorId);
   if (!anchor) return [];
-  return records.filter((r) => r.timestamp >= anchor.timestamp).map((r) => r.id);
+  return records.filter((r) => r.timestamp <= anchor.timestamp).map((r) => r.id);
 }
 
 interface UrlRecord {

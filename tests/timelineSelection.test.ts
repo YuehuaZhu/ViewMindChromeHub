@@ -1,27 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { matchTabsToClose, selectThisAndNewer } from "../src/collector/timelineSelection";
+import { matchTabsToClose, selectThisAndOlder } from "../src/collector/timelineSelection";
 
-describe("selectThisAndNewer", () => {
+describe("selectThisAndOlder", () => {
   const records = [
     { id: "c", timestamp: 300 }, // 最新在上
     { id: "b", timestamp: 200 },
     { id: "a", timestamp: 100 },
   ];
 
-  it("selects the anchor and all newer records", () => {
-    expect(selectThisAndNewer(records, "b").sort()).toEqual(["b", "c"]);
+  it("selects the anchor and all older records (this and below in newest-first list)", () => {
+    expect(selectThisAndOlder(records, "b").sort()).toEqual(["a", "b"]);
   });
 
-  it("anchor being newest selects only itself", () => {
-    expect(selectThisAndNewer(records, "c")).toEqual(["c"]);
+  it("anchor being oldest selects only itself", () => {
+    expect(selectThisAndOlder(records, "a")).toEqual(["a"]);
   });
 
-  it("anchor being oldest selects everything", () => {
-    expect(selectThisAndNewer(records, "a").sort()).toEqual(["a", "b", "c"]);
+  it("anchor being newest selects everything", () => {
+    expect(selectThisAndOlder(records, "c").sort()).toEqual(["a", "b", "c"]);
   });
 
   it("unknown anchor selects nothing", () => {
-    expect(selectThisAndNewer(records, "zzz")).toEqual([]);
+    expect(selectThisAndOlder(records, "zzz")).toEqual([]);
   });
 });
 
