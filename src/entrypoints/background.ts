@@ -1,5 +1,5 @@
 import { defineBackground } from "wxt/utils/define-background";
-import { buildRecord, mergeVisit, DEDUP_WINDOW_MS, type VisitSignal } from "../collector/history";
+import { buildRecord, mergeVisit, startOfLocalDay, type VisitSignal } from "../collector/history";
 import { LocalStorageAdapter } from "../storage/local";
 import { RemoteStorageAdapter } from "../storage/remote";
 import { getRemoteSettings } from "../storage/remoteConfig";
@@ -7,7 +7,7 @@ import type { ContextRecord } from "../models/context";
 
 /**
  * 后台 service worker：接收 content script 在页面存活满 ~2s 时上报的 VisitSignal → 落库。
- * 同 URL 时间窗内合并;有正文则存入独立内容表并回填 rawContentRef。
+ * 同 URL 当天内合并(次日重新计数);有正文则存入独立内容表并回填 rawContentRef。
  * 若启用 DesktopHub 推送,落库后额外把 record+正文单向上报(best-effort)。
  */
 export default defineBackground(() => {
@@ -32,7 +32,7 @@ export default defineBackground(() => {
       const fresh = buildRecord(signal);
       if (!fresh) return { saved: false, reason: "filtered" };
 
-      const target = await storage.findMergeTarget(fresh.ownerId, fresh.url, DEDUP_WINDOW_MS);
+      const target = await storage.findMergeTarget(fresh.ownerId, fresh.url, startOfLocalDay());
       const record = target ? mergeVisit(target, fresh) : fresh;
       if (signal.rawContent) record.rawContentRef = record.id;
 

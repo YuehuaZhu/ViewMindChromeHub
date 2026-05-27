@@ -49,13 +49,12 @@ export class LocalStorageAdapter implements StorageAdapter {
     return r?.ownerId === ctx.ownerId ? r : undefined;
   }
 
-  /** 找时间窗内同规范化 URL 的记录作为合并目标（用于采集去重）。 */
+  /** 找 since 起同规范化 URL 的记录作为合并目标（采集去重，since = 当天零点）。 */
   async findMergeTarget(
     ownerId: string,
     url: string,
-    windowMs: number,
+    since: number,
   ): Promise<ContextRecord | undefined> {
-    const since = Date.now() - windowMs;
     const recent = await this.db.records
       .where("[ownerId+timestamp]")
       .between([ownerId, since], [ownerId, Dexie.maxKey])

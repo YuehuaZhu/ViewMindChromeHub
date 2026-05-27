@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildRecord, cleanTitle, mergeVisit, readableUrl } from "../src/collector/history";
+import { buildRecord, cleanTitle, mergeVisit, readableUrl, startOfLocalDay } from "../src/collector/history";
 import { DEFAULT_OWNER_ID, type ContextRecord, type Interaction } from "../src/models/context";
 
 const base = { title: "T", interactions: [] as Interaction[] };
@@ -24,6 +24,31 @@ describe("cleanTitle", () => {
   });
   it("keeps a normal trimmed title", () => {
     expect(cleanTitle("  百度一下  ", "https://baidu.com")).toBe("百度一下");
+  });
+});
+
+describe("startOfLocalDay", () => {
+  it("returns local midnight of the given instant", () => {
+    const noon = new Date(2026, 4, 27, 12, 34, 56, 789).getTime();
+    const midnight = new Date(2026, 4, 27, 0, 0, 0, 0).getTime();
+    expect(startOfLocalDay(noon)).toBe(midnight);
+  });
+
+  it("maps any two instants on the same local day to the same boundary", () => {
+    const morning = new Date(2026, 4, 27, 0, 0, 1, 0).getTime();
+    const night = new Date(2026, 4, 27, 23, 59, 59, 999).getTime();
+    expect(startOfLocalDay(morning)).toBe(startOfLocalDay(night));
+  });
+
+  it("maps consecutive days to boundaries one day apart, so cross-day visits do not merge", () => {
+    const today = new Date(2026, 4, 27, 9, 0, 0, 0).getTime();
+    const tomorrow = new Date(2026, 4, 28, 9, 0, 0, 0).getTime();
+    const a = startOfLocalDay(today);
+    const b = startOfLocalDay(tomorrow);
+    expect(b).toBeGreaterThan(a);
+    // tomorrow's record (ts >= b) sits at/after its own boundary; today's record (ts < b) is
+    // excluded from tomorrow's [since=b, max] merge window → a fresh count next day.
+    expect(today).toBeLessThan(b);
   });
 });
 
