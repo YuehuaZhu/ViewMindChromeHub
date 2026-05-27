@@ -1,6 +1,8 @@
 import { defineContentScript } from "wxt/utils/define-content-script";
 import { Readability } from "@mozilla/readability";
 import TurndownService from "turndown";
+import type { Interaction, InteractionType } from "../models/context";
+import type { VisitSignal } from "../collector/history";
 
 /** 在 document 克隆上跑 Readability（会改 DOM），抽正文转 Markdown；失败返回 undefined。 */
 function extractMarkdown(): string | undefined {
@@ -14,30 +16,35 @@ function extractMarkdown(): string | undefined {
   }
 }
 
+/** 页面存活满 SETTLE_MS 才算"真正打开过";一闪而过的页定时器随上下文销毁不触发,天然过滤。 */
+const SETTLE_MS = 2000;
+
 /**
- * Content script：页面加载后与后台建立长连接 port。
- * 端口存活 = 页面存活;离开页面时 port 自动断开,由后台据此计算停留并落库。
- * 不再在页面卸载时 sendMessage(那在同标签跳转/关页时常丢失)。
+ * Content script：页面加载后等 SETTLE_MS,若仍存活则抽正文 + 上报一次 VisitSignal。
+ * 在页面"还活着"时发送 → 可靠;不再等离开页面(那在同标签跳转/关页时常丢)。
  */
 export default defineContentScript({
   matches: ["<all_urls>"],
   runAt: "document_idle",
   main() {
-    const port = chrome.runtime.connect({ name: "visit" });
-
-    port.postMessage({
-      kind: "meta",
-      url: location.href,
-      title: document.title,
-      rawContent: extractMarkdown(),
-      referrer: document.referrer || undefined,
-    });
-
+    const interactions: Interaction[] = [];
+    const record = (type: InteractionType, value: string) => {
+      if (value) interactions.push({ type, value, ts: Date.now() });
+    };
     document.addEventListener("copy", () => {
-      const value = window.getSelection()?.toString();
-      if (value) {
-        port.postMessage({ kind: "interaction", interaction: { type: "copy", value, ts: Date.now() } });
-      }
+      record("copy", window.getSelection()?.toString() ?? "");
     });
+
+    setTimeout(() => {
+      const signal: VisitSignal = {
+        url: location.href,
+        title: document.title,
+        rawContent: extractMarkdown(),
+        interactions,
+        referrer: document.referrer || undefined,
+      };
+      console.info("[ViewMind] 上报 visit", signal.url);
+      chrome.runtime.sendMessage({ type: "visit", signal }, () => void chrome.runtime.lastError);
+    }, SETTLE_MS);
   },
 });
