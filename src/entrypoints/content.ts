@@ -1,10 +1,24 @@
 import { defineContentScript } from "wxt/utils/define-content-script";
+import { Readability } from "@mozilla/readability";
+import TurndownService from "turndown";
 import type { Interaction, InteractionType } from "../models/context";
 import type { VisitSignal } from "../collector/history";
 
+/** 在 document 克隆上跑 Readability（会改 DOM），抽正文转 Markdown；失败返回 undefined。 */
+function extractMarkdown(): string | undefined {
+  try {
+    const article = new Readability(document.cloneNode(true) as Document).parse();
+    if (!article?.content) return undefined;
+    const md = new TurndownService({ headingStyle: "atx" }).turndown(article.content);
+    return md.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
- * Content script：正文抽取（@mozilla/readability + turndown）+ 关键交互监听。
- * MVP 骨架：记录交互、页面卸载时上报 VisitSignal。正文抽取与敏感字段过滤待补。
+ * Content script：正文抽取（Readability + Turndown）+ 关键交互监听。
+ * 页面隐藏时连同正文一起上报 VisitSignal。
  */
 export default defineContentScript({
   matches: ["<all_urls>"],
@@ -17,18 +31,18 @@ export default defineContentScript({
       if (value) interactions.push({ type, value, ts: Date.now() });
     };
 
-    // 选中复制片段（TODO: 过敏感正则后再记录）。
     document.addEventListener("copy", () => {
       record("copy", window.getSelection()?.toString() ?? "");
     });
 
-    // 页面隐藏时上报，避免 service worker 提前回收丢数据。
+    let reported = false;
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState !== "hidden") return;
+      if (document.visibilityState !== "hidden" || reported) return;
+      reported = true;
       const signal: VisitSignal = {
         url: location.href,
         title: document.title,
-        // TODO(M0): rawContentRef = turndown(Readability(document).parse()).
+        rawContent: extractMarkdown(),
         interactions,
         dwellMs: Date.now() - start,
         referrer: document.referrer || undefined,
