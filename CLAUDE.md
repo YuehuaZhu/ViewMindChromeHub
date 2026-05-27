@@ -102,4 +102,4 @@ git push origin HEAD                 # 用 +pr 创建 PR,+merge 合并
 
 > **采集时机 / 快速浏览的页没进时间线**:记录在页面**打开满 `SETTLE_MS`(~2s,在 [`content.ts`](src/entrypoints/content.ts))时**上报一次——不依赖"离开页面"(那在同标签跳转/关页时常丢)。活不够 2s 的一闪而过页定时器不触发,天然过滤。**不采集停留时长**(早期去掉,`dwellMs` 字段保留可选,未来用后台 visibility 精确计时再启用)。
 
-> **同一页只有一条 / 显示「访问 N 次」**:`DEDUP_WINDOW_MS`(默认 1h)内重访同 URL 会合并进同一条(合并交互、置顶时间、`visitCount++`),逻辑在 `history.ts` `mergeVisit` + `LocalStorageAdapter.findMergeTarget`。窗外重访为新条。窗口是常量可调。
+> **同一页一天一条 / 显示「浏览 N 次」**:去重边界 = **本地自然日**(`startOfLocalDay`,在 `history.ts`)。当天内重访同 URL 合并进同一条(合并交互、置顶时间、`visitCount++`),**次日重新从 1 计数**(新增一条)。逻辑在 `history.ts` `mergeVisit` + `LocalStorageAdapter.findMergeTarget(ownerId, url, since)`(`since` = 当天零点)。
