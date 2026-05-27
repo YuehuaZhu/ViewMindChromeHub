@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_integration:
+        description: '手动触发集成构建'
+        type: boolean
+        default: false
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 常驻检查:每次 push / PR 必跑
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm compile
+      - run: pnpm test
+
+  # 集成构建:仅 Issue 最终 PR(Closes #N)或手动触发
+  integration:
+    name: integration build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: test
+    if: |
+      (github.event_name == 'pull_request' &&
+       contains(github.event.pull_request.body, 'Closes #')) ||
+      (github.event_name == 'workflow_dispatch' &&
+       github.event.inputs.run_integration == 'true')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm build:firefox

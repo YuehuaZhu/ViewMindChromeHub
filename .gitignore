@@ -1,0 +1,17 @@
+# dependencies
+node_modules/
+
+# WXT build artifacts
+.wxt/
+.output/
+stats.html
+stats-*.json
+
+# logs / env / editor
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+.idea/
+.vscode/
