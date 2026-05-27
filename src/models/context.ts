@@ -20,8 +20,10 @@ export interface ContextRecord {
   /** 正文 Markdown 引用（可选保留，便于二次加工）。 */
   rawContentRef?: string;
   interactions: Interaction[];
-  /** 停留时长（毫秒）。 */
+  /** 停留时长（毫秒），同 URL 时间窗内合并时累加。 */
   dwellMs: number;
+  /** 同 URL 时间窗内被合并的访问次数，默认 1。 */
+  visitCount?: number;
   /** LLM 生成的语义标签。 */
   tags: string[];
   source: {
