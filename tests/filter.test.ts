@@ -17,6 +17,13 @@ describe("filter", () => {
     expect(isNoise("https://example.com")).toBe(false);
   });
 
+  it("treats captcha/redirect interstitials as noise", () => {
+    expect(isNoise("https://wappass.baidu.com/static/captcha/tuxing_v2.html")).toBe(true);
+    expect(isNoise("https://www.google.com/sorry/index?continue=x")).toBe(true);
+    expect(isNoise("https://www.baidu.com/link?url=abc")).toBe(true);
+    expect(isNoise("https://cjrb.cjn.cn/h5/html5/x.htm")).toBe(false);
+  });
+
   it("captures only non-noise non-blocked urls", () => {
     expect(shouldCapture("https://example.com/post")).toBe(true);
     expect(shouldCapture("https://paypal.com/pay")).toBe(false);
