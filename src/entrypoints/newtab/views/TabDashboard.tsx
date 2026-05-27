@@ -47,7 +47,7 @@ export function TabDashboard() {
     chrome.tabs.remove(id);
   };
 
-  const closeDuplicates = (ids: number[]) => {
+  const closeTabs = (ids: number[]) => {
     if (ids.length) chrome.tabs.remove(ids);
   };
 
@@ -64,14 +64,22 @@ export function TabDashboard() {
             <div className="tabdash-group__header">
               <span>{g.domain}</span>
               <span className="tabdash-group__count">{g.tabs.length} 个标签</span>
-              {g.duplicateTabIds.length > 0 && (
+              <div className="tabdash-group__actions">
+                {g.duplicateTabIds.length > 0 && (
+                  <button
+                    className="tabdash-group__btn tabdash-group__btn--dedup"
+                    onClick={() => closeTabs(g.duplicateTabIds)}
+                  >
+                    关闭 {g.duplicateTabIds.length} 个重复
+                  </button>
+                )}
                 <button
-                  className="tabdash-group__dedup"
-                  onClick={() => closeDuplicates(g.duplicateTabIds)}
+                  className="tabdash-group__btn"
+                  onClick={() => closeTabs(g.tabs.map((t) => t.id))}
                 >
-                  关闭 {g.duplicateTabIds.length} 个重复
+                  全部关闭
                 </button>
-              )}
+              </div>
             </div>
             {g.tabs.map((tab) => (
               <div
