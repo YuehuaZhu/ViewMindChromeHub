@@ -1,17 +1,21 @@
 import { defineBackground } from "wxt/utils/define-background";
-import { buildRecord, type VisitSignal } from "../collector/history";
+import { buildRecord, mergeVisit, DEDUP_WINDOW_MS, type VisitSignal } from "../collector/history";
 import { LocalStorageAdapter } from "../storage/local";
 
 /**
  * 后台 service worker：接收 content script 上报的 VisitSignal → 过滤 → 写入本地存储；
- * 有正文则存入独立内容表并回填 rawContentRef。
+ * 同 URL 时间窗内合并;有正文则存入独立内容表并回填 rawContentRef。
  */
 export default defineBackground(() => {
   const storage = new LocalStorageAdapter();
 
   const handle = async (signal: VisitSignal): Promise<{ saved: boolean; reason?: string }> => {
-    const record = buildRecord(signal);
-    if (!record) return { saved: false, reason: "filtered" };
+    const fresh = buildRecord(signal);
+    if (!fresh) return { saved: false, reason: "filtered" };
+
+    // 时间窗内同 URL → 合并进已有记录(沿用其 id),否则新增。
+    const target = await storage.findMergeTarget(fresh.ownerId, fresh.url, DEDUP_WINDOW_MS);
+    const record = target ? mergeVisit(target, fresh) : fresh;
 
     if (signal.rawContent) {
       await storage.putContent({

@@ -55,7 +55,26 @@ export function buildRecord(
     rawContentRef: undefined, // 由 background 存入正文后回填。
     interactions: signal.interactions,
     dwellMs: signal.dwellMs,
+    visitCount: 1,
     tags: [],
     source: { referrer: signal.referrer, fromUrl: signal.fromUrl },
+  };
+}
+
+/** 同 URL 合并时间窗：窗内的重访合并进同一条而非新增。按观感可调。 */
+export const DEDUP_WINDOW_MS = 60 * 60 * 1000;
+
+/**
+ * 把一次新访问合并进时间窗内的已有记录：累加停留、合并交互、时间戳置顶、访问次数自增。
+ * 保留 existing 的 id/ownerId/url/source/摘要/标签;标题取最新清理后的。纯函数便于单测。
+ */
+export function mergeVisit(existing: ContextRecord, incoming: ContextRecord): ContextRecord {
+  return {
+    ...existing,
+    title: incoming.title,
+    timestamp: Math.max(existing.timestamp, incoming.timestamp),
+    dwellMs: existing.dwellMs + incoming.dwellMs,
+    interactions: [...existing.interactions, ...incoming.interactions],
+    visitCount: (existing.visitCount ?? 1) + 1,
   };
 }

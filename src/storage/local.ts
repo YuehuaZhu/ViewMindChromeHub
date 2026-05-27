@@ -1,5 +1,6 @@
 import Dexie, { type Table } from "dexie";
 import type { ContextRecord, RawContent } from "../models/context";
+import { canonicalUrl } from "../collector/tabState";
 import type { ContextQuery, OwnerContext, StorageAdapter } from "./adapter";
 
 class ViewMindDB extends Dexie {
@@ -49,6 +50,21 @@ export class LocalStorageAdapter implements StorageAdapter {
   async get(ctx: OwnerContext, id: string): Promise<ContextRecord | undefined> {
     const r = await this.db.records.get(id);
     return r?.ownerId === ctx.ownerId ? r : undefined;
+  }
+
+  /** 找时间窗内同规范化 URL 的记录作为合并目标（用于采集去重）。 */
+  async findMergeTarget(
+    ownerId: string,
+    url: string,
+    windowMs: number,
+  ): Promise<ContextRecord | undefined> {
+    const since = Date.now() - windowMs;
+    const recent = await this.db.records
+      .where("[ownerId+timestamp]")
+      .between([ownerId, since], [ownerId, Dexie.maxKey])
+      .toArray();
+    const cu = canonicalUrl(url);
+    return recent.find((r) => canonicalUrl(r.url) === cu);
   }
 
   /** 存正文（独立表）。 */
