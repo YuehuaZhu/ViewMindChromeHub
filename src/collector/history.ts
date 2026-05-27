@@ -55,8 +55,15 @@ export function buildRecord(
   };
 }
 
-/** 同 URL 合并时间窗：窗内的重访合并进同一条而非新增。按观感可调。 */
-export const DEDUP_WINDOW_MS = 60 * 60 * 1000;
+/**
+ * 同 URL 去重边界 = 本地自然日零点:当天内的重访合并进同一条,次日重新计数。
+ * 返回 now 所在本地日的 00:00:00.000 时间戳(用作合并查询的 since 下界)。
+ */
+export function startOfLocalDay(now: number = Date.now()): number {
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
 
 /**
  * 把一次新访问合并进时间窗内的已有记录：合并交互、时间戳置顶、访问次数自增。
