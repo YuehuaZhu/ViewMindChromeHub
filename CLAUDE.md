@@ -98,3 +98,5 @@ git push origin HEAD                 # 用 +pr 创建 PR,+merge 合并
 > **新标签页不生效**:WXT 靠 `newtab` 入口名自动写 `chrome_url_overrides.newtab`,不要手动在 wxt.config 里再写一遍。
 
 > **快速浏览的页没进时间线**:有意为之。停留 < `MIN_DWELL_MS`(2s)**且**无关键交互的页被当作中转/重定向噪音跳过,逻辑在 [`collector/history.ts`](src/collector/history.ts) `buildRecord`,阈值是常量可调。
+
+> **同一页只有一条 / 显示「访问 N 次」**:`DEDUP_WINDOW_MS`(默认 1h)内重访同 URL 会合并进同一条(累加停留、合并交互、置顶时间、`visitCount++`),逻辑在 `history.ts` `mergeVisit` + `LocalStorageAdapter.findMergeTarget`。窗外重访为新条。窗口是常量可调。
