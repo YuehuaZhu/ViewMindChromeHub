@@ -5,7 +5,8 @@ import { shouldCapture } from "./filter";
 export interface VisitSignal {
   url: string;
   title: string;
-  rawContentRef?: string;
+  /** content script 抽取的正文 Markdown；由 background 存入独立内容表后回填 rawContentRef。 */
+  rawContent?: string;
   interactions: Interaction[];
   dwellMs: number;
   referrer?: string;
@@ -51,7 +52,7 @@ export function buildRecord(
     timestamp: Date.now(),
     url: signal.url,
     title: cleanTitle(signal.title, signal.url),
-    rawContentRef: signal.rawContentRef,
+    rawContentRef: undefined, // 由 background 存入正文后回填。
     interactions: signal.interactions,
     dwellMs: signal.dwellMs,
     tags: [],

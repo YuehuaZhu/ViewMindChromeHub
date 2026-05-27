@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { DEFAULT_OWNER_ID, type ContextRecord } from "../../../models/context";
 import { LocalStorageAdapter } from "../../../storage/local";
 import { matchTabsToClose, selectThisAndOlder } from "../../../collector/timelineSelection";
+import { contentPreview } from "../../../processor/preview";
 import "./ContextTimeline.css";
 
 const storage = new LocalStorageAdapter();
@@ -11,10 +12,25 @@ export function ContextTimeline() {
   const [records, setRecords] = useState<ContextRecord[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState<string | null>(null);
+  // 正文按需懒加载：id → 预览文本（不进时间线查询，保持其轻量）。
+  const [previews, setPreviews] = useState<Record<string, string>>({});
 
   useEffect(() => {
     storage.query({ ownerId: DEFAULT_OWNER_ID, limit: 100 }).then(setRecords);
   }, []);
+
+  const togglePreview = async (id: string) => {
+    if (previews[id] !== undefined) {
+      setPreviews((p) => {
+        const next = { ...p };
+        delete next[id];
+        return next;
+      });
+      return;
+    }
+    const content = await storage.getContent({ ownerId: DEFAULT_OWNER_ID }, id);
+    setPreviews((p) => ({ ...p, [id]: content ? contentPreview(content.markdown) : "(正文为空)" }));
+  };
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -83,6 +99,14 @@ export function ContextTimeline() {
               </div>
               {r.tags.length > 0 && (
                 <div className="timeline-item__tags">{r.tags.map((t) => `#${t}`).join(" ")}</div>
+              )}
+              {r.rawContentRef && (
+                <button className="timeline-item__content-toggle" onClick={() => togglePreview(r.id)}>
+                  {previews[r.id] !== undefined ? "▾ 收起正文" : "📄 已存正文"}
+                </button>
+              )}
+              {previews[r.id] !== undefined && (
+                <div className="timeline-item__preview">{previews[r.id]}</div>
               )}
             </div>
             <button

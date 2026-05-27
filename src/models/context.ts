@@ -32,3 +32,13 @@ export interface ContextRecord {
 
 /** 单人期固定 ownerId；商业化多租户时由鉴权上下文注入。 */
 export const DEFAULT_OWNER_ID = "local-default";
+
+/** 正文存独立表，与 ContextRecord 一对一（id 相同）。时间线查询不连带它，按需懒加载。 */
+export interface RawContent {
+  /** = 对应 ContextRecord.id。 */
+  id: string;
+  ownerId: string;
+  /** 正文 Markdown（Readability + Turndown 产出）。 */
+  markdown: string;
+  capturedAt: number;
+}

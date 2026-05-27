@@ -3,20 +3,32 @@ import { buildRecord, type VisitSignal } from "../collector/history";
 import { LocalStorageAdapter } from "../storage/local";
 
 /**
- * 后台 service worker：监听 tab/导航事件、停留计时、批量总结调度。
- * MVP 骨架：接收 content script 上报的 VisitSignal → 过滤 → 写入默认本地存储。
+ * 后台 service worker：接收 content script 上报的 VisitSignal → 过滤 → 写入本地存储；
+ * 有正文则存入独立内容表并回填 rawContentRef。
  */
 export default defineBackground(() => {
   const storage = new LocalStorageAdapter();
 
+  const handle = async (signal: VisitSignal): Promise<{ saved: boolean; reason?: string }> => {
+    const record = buildRecord(signal);
+    if (!record) return { saved: false, reason: "filtered" };
+
+    if (signal.rawContent) {
+      await storage.putContent({
+        id: record.id,
+        ownerId: record.ownerId,
+        markdown: signal.rawContent,
+        capturedAt: record.timestamp,
+      });
+      record.rawContentRef = record.id;
+    }
+    await storage.put(record);
+    return { saved: true };
+  };
+
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg?.type === "visit-signal") {
-      const record = buildRecord(msg.signal as VisitSignal);
-      if (record) {
-        storage.put(record).then(() => sendResponse({ saved: true }));
-      } else {
-        sendResponse({ saved: false, reason: "filtered" });
-      }
+      handle(msg.signal as VisitSignal).then(sendResponse);
       return true; // 异步响应。
     }
     return false;
