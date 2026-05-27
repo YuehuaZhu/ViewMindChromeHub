@@ -59,7 +59,7 @@ pnpm test                 # Vitest 单测
 src/
   entrypoints/      WXT 入口(WXT 约定必须放这里,不是 PLAN 里写的 src/background 等)
     background.ts   service worker:收 VisitSignal → 过滤 → 写本地存储
-    content.ts      content script:Readability+Turndown 抽正文 + 交互监听 + 页面隐藏上报 VisitSignal
+    content.ts      content script:加载后等 SETTLE_MS(~2s)仍存活则抽正文(Readability+Turndown)+ 上报 VisitSignal(页面活着时发,可靠)
     hub/            双视图主控台 hub.html(App + HubActions[导出/设置/清除] + views/TabDashboard + ContextTimeline)
     options/        设置:API key / 黑名单 / 存储后端
   collector/        filter(黑名单+噪音) · tabState(分组/去重) · history(组装 Record) · timelineSelection(时间线区间选择+URL匹配标签)
@@ -96,6 +96,6 @@ git push origin HEAD                 # 用 +pr 创建 PR,+merge 合并
 
 > **主控台入口 / 点图标没反应**:主控台是普通扩展页 `hub.html`(入口目录 `entrypoints/hub`),**有意不接管新标签页**(早期接管过,老大反馈烦,已废)。manifest 不设 `default_popup`,点扩展图标由 background 的 `chrome.action.onClicked` 打开 `hub.html`。改回 popup 或加 onClicked 时注意二者互斥:有 `default_popup` 则 `onClicked` 不触发。
 
-> **快速浏览的页没进时间线**:有意为之。停留 < `MIN_DWELL_MS`(2s)**且**无关键交互的页被当作中转/重定向噪音跳过,逻辑在 [`collector/history.ts`](src/collector/history.ts) `buildRecord`,阈值是常量可调。
+> **采集时机 / 快速浏览的页没进时间线**:记录在页面**打开满 `SETTLE_MS`(~2s,在 [`content.ts`](src/entrypoints/content.ts))时**上报一次——不依赖"离开页面"(那在同标签跳转/关页时常丢)。活不够 2s 的一闪而过页定时器不触发,天然过滤。**不采集停留时长**(早期去掉,`dwellMs` 字段保留可选,未来用后台 visibility 精确计时再启用)。
 
-> **同一页只有一条 / 显示「访问 N 次」**:`DEDUP_WINDOW_MS`(默认 1h)内重访同 URL 会合并进同一条(累加停留、合并交互、置顶时间、`visitCount++`),逻辑在 `history.ts` `mergeVisit` + `LocalStorageAdapter.findMergeTarget`。窗外重访为新条。窗口是常量可调。
+> **同一页只有一条 / 显示「访问 N 次」**:`DEDUP_WINDOW_MS`(默认 1h)内重访同 URL 会合并进同一条(合并交互、置顶时间、`visitCount++`),逻辑在 `history.ts` `mergeVisit` + `LocalStorageAdapter.findMergeTarget`。窗外重访为新条。窗口是常量可调。

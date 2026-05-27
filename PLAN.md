@@ -67,7 +67,7 @@
   contentSummary,        // LLM 生成摘要(惰性填充)
   rawContentRef,         // 正文 Markdown 引用(可选保留)
   interactions: [ { type: "search"|"click"|"copy", value, ts } ],
-  dwellMs,               // 停留时长
+  dwellMs,               // 停留时长(早期暂不采集,字段保留;改为打开~2s 即记一条)
   tags: [],              // LLM 生成语义标签
   source: { referrer, fromUrl }
 }
@@ -138,7 +138,7 @@ ViewMindChromeHub/
 
 1. `chrome://extensions` 开发者模式加载未打包扩展;点扩展图标 → 打开双视图主控台(hub.html)。
 2. **Tab 仪表盘**:打开多个 tab(含同页重复、多域名)→ 确认按域名分组、重复检测标记、点击跳转到对应 tab、一键关闭生效。
-3. **历史采集**:访问 5~10 个网页 → 视图 B/IndexedDB 确认生成 ContextRecord(含停留时长、交互)。
+3. **历史采集**:访问 5~10 个网页(每页停 >2s)→ 视图 B/IndexedDB 确认生成 ContextRecord(早期不含停留时长)。
 4. 访问黑名单域名 → 确认**未**写入历史 context(但仪表盘可显示)。
 5. options 填 OpenAI 兼容 API key → 手动触发批量总结 → 确认 `contentSummary` 和 `tags` 填充。
 6. 一键导出 JSON / Markdown → 检查结构符合 ContextRecord schema。
