@@ -12,10 +12,8 @@ export default defineBackground(() => {
   const save = async (signal: VisitSignal): Promise<{ saved: boolean; reason?: string }> => {
     try {
       const fresh = buildRecord(signal);
-      if (!fresh) {
-        console.info("[ViewMind] 过滤跳过", signal.url);
-        return { saved: false, reason: "filtered" };
-      }
+      if (!fresh) return { saved: false, reason: "filtered" };
+
       const target = await storage.findMergeTarget(fresh.ownerId, fresh.url, DEDUP_WINDOW_MS);
       const record = target ? mergeVisit(target, fresh) : fresh;
       if (signal.rawContent) record.rawContentRef = record.id;
@@ -33,7 +31,6 @@ export default defineBackground(() => {
           console.warn("[ViewMind] 正文存储失败(记录已存)", e);
         }
       }
-      console.info("[ViewMind] 已存记录", record.url, target ? "(合并)" : "(新增)");
       return { saved: true };
     } catch (e) {
       console.error("[ViewMind] 落库出错", signal?.url, e);
