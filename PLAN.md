@@ -1,6 +1,8 @@
 # ViewMindChromeHub — 浏览中枢:Tab 管理 + Context 采集(数字分身底座)
 
-> **在 ViewMind 总体中的定位(老大 2026-05-27)**:本项目是 ViewMind 的**附属项目 + 第一个落地**(数据飞轮启动器),充当 DesktopHub 的**浏览器 context 采集源**——采集到的 `ContextRecord` 经「远程 HTTP 存储 adapter」上报到 DesktopHub 聚合收口。跨项目总纲见 `../ViewMindDesktopHub/MASTER_PLAN.md`。本项目自身计划(M0 MVP)不变。
+> **在 ViewMind 总体中的定位(老大 2026-05-27)**:本项目是 ViewMind 的**附属项目 + 第一个落地**(数据飞轮启动器),充当 DesktopHub 的**浏览器 context 采集源**——采集到的 `ContextRecord` 经「远程 HTTP 存储 adapter」上报到 DesktopHub 聚合收口。跨项目总纲见 `../ViewMindDesktopHub/MASTER_PLAN.md`。
+>
+> **重大调整(老大 2026-05-27)**:ChromeHub **只做采集 + 暴露,不含 AI 总结**。总结/聚合移到 DesktopHub;插件经 HTTP 推送把 `ContextRecord`+正文喂给本地 DesktopHub。下文涉及"在插件内 LLM 总结"的段落(架构图 Processor、借鉴的 LLM 接入、数据模型 `contentSummary` 等)按此调整理解:这些字段/能力归 DesktopHub。
 >
 > **商业化预留**:本插件长期要作为产品。架构上现在只留一道缝——`ContextRecord` 增加 `ownerId` 字段(单人期填固定默认值),`StorageAdapter` 接口携带 owner 上下文;鉴权/云多租户/上架 Chrome Web Store 等推迟到商业化阶段。详见 `MASTER_PLAN.md`「商业化与多租户」。
 
@@ -29,8 +31,8 @@
 | 行为粒度 | 中等:搜索词 / 点击链接 / 选中复制片段 |
 | 存储 | 可插拔:① 本地 IndexedDB(默认) ② 文件导出 ③ 远程 HTTP |
 | 目标浏览器 | Chrome/Edge 优先(Chromium MV3),Firefox 后置 |
-| LLM 总结时机 | 惰性/批量(空闲或手动触发,省 token) |
-| MVP 边界 | Tab 仪表盘 + 采集 + 总结 + 可插拔存储 + 导出;RAG/分身留到下一里程碑 |
+| LLM 总结时机 | ~~惰性/批量~~ → **移交 DesktopHub**(2026-05-27);插件不含 LLM,只推送原始 context |
+| MVP 边界 | Tab 仪表盘 + 采集 + 正文抽取 + 可插拔存储 + 导出 + 推送 DesktopHub;总结/RAG/分身在 DesktopHub 或下一里程碑 |
 
 ## 架构(双视图前台 + 四层引擎)
 
@@ -64,11 +66,11 @@
 {
   id, ownerId,           // ownerId:多租户预留,单人期填固定默认值
   timestamp, url, title,
-  contentSummary,        // LLM 生成摘要(惰性填充)
+  contentSummary,        // 摘要(由 DesktopHub 生成;插件不填,保留字段)
   rawContentRef,         // 正文 Markdown 引用(可选保留)
   interactions: [ { type: "search"|"click"|"copy", value, ts } ],
   dwellMs,               // 停留时长(早期暂不采集,字段保留;改为打开~2s 即记一条)
-  tags: [],              // LLM 生成语义标签
+  tags: [],              // 语义标签(由 DesktopHub 生成;插件不填,保留字段)
   source: { referrer, fromUrl }
 }
 ```
@@ -129,7 +131,7 @@ ViewMindChromeHub/
 
 ## 里程碑路线
 
-- **M0(本计划 MVP)✅ 端到端跑通(2026-05-27)**:双视图主控台 + Tab 仪表盘(核心子集)+ 历史采集 + 智能过滤 + 手动批量总结 + 可插拔存储(local/file 完成、remote 仅桩)+ 导出。已真机验收。遗留待打磨:远程 adapter 落地、停留时长(后台精确计时)、空闲自动总结、SPA 路由采集。
+- **M0(本计划 MVP)✅ 端到端跑通(2026-05-27)**:双视图主控台 + Tab 仪表盘(核心子集)+ 历史采集 + 正文抽取 + 智能过滤 + 可插拔存储(local/file)+ 导出 + **HTTP 推送 DesktopHub**。已真机验收。~~插件内总结~~ 已移交 DesktopHub。遗留待打磨:停留时长(后台精确计时)、SPA 路由采集、DesktopHub 真正接收端(R2)。
 - **M1**:浏览器内语义检索(RAG,借 personal-ai-memory)+ 当前 tab 快照入 context → 第二大脑雏形。
 - **M2**:对话型分身。
 - **M3**:行动型 Agent(借 nanobrowser/screenpipe pipe)。
@@ -140,7 +142,7 @@ ViewMindChromeHub/
 2. **Tab 仪表盘**:打开多个 tab(含同页重复、多域名)→ 确认按域名分组、重复检测标记、点击跳转到对应 tab、一键关闭生效。
 3. **历史采集**:访问 5~10 个网页(每页停 >2s)→ 视图 B/IndexedDB 确认生成 ContextRecord(早期不含停留时长)。
 4. 访问黑名单域名 → 确认**未**写入历史 context(但仪表盘可显示)。
-5. options 填 OpenAI 兼容 API key → 手动触发批量总结 → 确认 `contentSummary` 和 `tags` 填充。
+5. options 配 DesktopHub 端点 + 启用 → 浏览网页 → 确认端点收到 `POST /records`(record+正文);未启用不推送、端点挂了不影响本地采集。
 6. 一键导出 JSON / Markdown → 检查结构符合 ContextRecord schema。
 7. 配本地 mock HTTP endpoint → 切远程 adapter → 确认数据被 POST。
 8. Vitest 跑过滤规则、数据模型、StorageAdapter、tab 分组/去重逻辑单测。

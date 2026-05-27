@@ -1,34 +1,42 @@
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { DEFAULT_BLOCKLIST } from "../../collector/filter";
-import { LLM_DEFAULTS, LLM_KEYS } from "../../processor/config";
+import { REMOTE_KEYS } from "../../storage/remoteConfig";
 
 /**
- * 设置页：LLM 账号(base/key/model) / 黑名单 / 存储后端。
- * 配置存 chrome.storage.local，UI 明示不上传。
+ * 设置页：DesktopHub 接入(推送)/ 黑名单 / 存储后端。
+ * 配置存 chrome.storage.local，UI 明示不上传第三方。总结/聚合在 DesktopHub 完成,插件不含 LLM。
  */
 function Options() {
-  const [baseUrl, setBaseUrl] = useState("");
+  const [endpoint, setEndpoint] = useState("");
   const [apiKey, setApiKey] = useState("");
-  const [model, setModel] = useState("");
+  const [enabled, setEnabled] = useState(false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     chrome.storage.local
-      .get([LLM_KEYS.baseUrl, LLM_KEYS.apiKey, LLM_KEYS.model])
+      .get([REMOTE_KEYS.endpoint, REMOTE_KEYS.apiKey, REMOTE_KEYS.enabled])
       .then((raw) => {
-        const v = raw as Record<string, string>;
-        setBaseUrl(v[LLM_KEYS.baseUrl] ?? "");
-        setApiKey(v[LLM_KEYS.apiKey] ?? "");
-        setModel(v[LLM_KEYS.model] ?? "");
+        const v = raw as Record<string, unknown>;
+        setEndpoint((v[REMOTE_KEYS.endpoint] as string) ?? "");
+        setApiKey((v[REMOTE_KEYS.apiKey] as string) ?? "");
+        setEnabled(Boolean(v[REMOTE_KEYS.enabled]));
       });
   }, []);
 
+  // 启用推送需二次确认(隐私红线:远程上报必须显式同意)。
+  const onToggleEnabled = (next: boolean) => {
+    if (next && !confirm("启用后,采集到的网页记录与正文将被推送到你配置的 DesktopHub 端点。确认启用?")) {
+      return;
+    }
+    setEnabled(next);
+  };
+
   const save = async () => {
     await chrome.storage.local.set({
-      [LLM_KEYS.baseUrl]: baseUrl,
-      [LLM_KEYS.apiKey]: apiKey,
-      [LLM_KEYS.model]: model,
+      [REMOTE_KEYS.endpoint]: endpoint,
+      [REMOTE_KEYS.apiKey]: apiKey,
+      [REMOTE_KEYS.enabled]: enabled,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -39,35 +47,35 @@ function Options() {
       <h1>ViewMind 设置</h1>
 
       <section>
-        <h2>LLM 账号</h2>
+        <h2>DesktopHub 接入(推送)</h2>
         <p style={{ color: "#666", fontSize: 13 }}>
-          仅存于本机 chrome.storage.local，不会上传到任何第三方;调用时直接请求你填的服务地址。
+          插件只负责采集;开启后把记录与正文推送到本地 DesktopHub,由它完成总结/聚合。
+          配置仅存本机,默认关闭。
         </p>
         <label style={{ display: "block", marginBottom: 8 }}>
-          服务地址 (OpenAI 兼容 base URL)
           <input
-            value={baseUrl}
-            placeholder={LLM_DEFAULTS.baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => onToggleEnabled(e.target.checked)}
+          />{" "}
+          启用推送到 DesktopHub
+        </label>
+        <label style={{ display: "block", marginBottom: 8 }}>
+          端点 URL
+          <input
+            value={endpoint}
+            placeholder="http://127.0.0.1:8765"
+            onChange={(e) => setEndpoint(e.target.value)}
             style={{ width: "100%" }}
           />
         </label>
         <label style={{ display: "block", marginBottom: 8 }}>
-          API key
+          API key(可选)
           <input
             type="password"
             value={apiKey}
-            placeholder="sk-..."
+            placeholder="DesktopHub 若需鉴权则填"
             onChange={(e) => setApiKey(e.target.value)}
-            style={{ width: "100%" }}
-          />
-        </label>
-        <label style={{ display: "block", marginBottom: 8 }}>
-          模型
-          <input
-            value={model}
-            placeholder={LLM_DEFAULTS.model}
-            onChange={(e) => setModel(e.target.value)}
             style={{ width: "100%" }}
           />
         </label>
@@ -77,7 +85,9 @@ function Options() {
 
       <section>
         <h2>敏感域名黑名单</h2>
-        <p style={{ color: "#666", fontSize: 13 }}>命中以下域名不写入历史 context（仪表盘仍可显示）。</p>
+        <p style={{ color: "#666", fontSize: 13 }}>
+          命中以下域名不写入历史 context(也不会推送);仪表盘仍可显示。
+        </p>
         <ul>
           {DEFAULT_BLOCKLIST.map((d) => (
             <li key={d}>{d}</li>
@@ -87,9 +97,7 @@ function Options() {
 
       <section>
         <h2>存储后端</h2>
-        <p style={{ color: "#666", fontSize: 13 }}>
-          默认本地 IndexedDB。远程 HTTP 上报需显式配置 + 二次确认（M0 待接服务器形态）。
-        </p>
+        <p style={{ color: "#666", fontSize: 13 }}>默认本地 IndexedDB;推送为额外的单向上报,不替代本地。</p>
       </section>
     </main>
   );
