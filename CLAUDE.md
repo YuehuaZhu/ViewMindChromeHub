@@ -4,6 +4,16 @@ Chromium(Chrome/Edge)MV3 扩展。接管新标签页为双视图主控台:**Tab 
 
 完整产品背景、决策、里程碑见 [PLAN.md](PLAN.md)。
 
+## 本项目在 ViewMind 总体中的定位（引导桥）
+
+本项目是 ViewMind 的**附属项目 + 第一个落地(Roadmap R1)**,充当核心收口项目 DesktopHub 的**浏览器 context 采集源**(采集到的 `ContextRecord` 经 remote adapter 上报聚合)。
+
+**每个 session 开工前必读(按序):**
+1. **全局总纲**:`/Users/zhuyuehua/MyCode/ViewMindDesktopHub/MASTER_PLAN.md` —— 三步定序(采集→交互→自动化)、项目分工、`SourceAdapter` 通用接口、`ownerId` 多租户预留、落地顺序 R0–R4。
+2. **本项目计划**:[PLAN.md](PLAN.md) —— M0 MVP 范围与验证方式。
+
+任何改动须符合总纲约束:三步定序、`SourceAdapter`/`StorageAdapter` 接口范式、`ContextRecord` 带 `ownerId`、本地优先 + 隐私红线。与总纲冲突时**先对齐总纲再动手**。
+
 ## 开发规范
 
 每次代码改动前,根据复杂程度自动选择轨道:
