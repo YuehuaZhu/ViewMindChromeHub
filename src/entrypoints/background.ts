@@ -10,28 +10,44 @@ export default defineBackground(() => {
   const storage = new LocalStorageAdapter();
 
   const handle = async (signal: VisitSignal): Promise<{ saved: boolean; reason?: string }> => {
-    const fresh = buildRecord(signal);
-    if (!fresh) return { saved: false, reason: "filtered" };
+    try {
+      const fresh = buildRecord(signal);
+      if (!fresh) {
+        console.info("[ViewMind] 过滤跳过", signal.url, "dwell=", signal.dwellMs);
+        return { saved: false, reason: "filtered" };
+      }
 
-    // 时间窗内同 URL → 合并进已有记录(沿用其 id),否则新增。
-    const target = await storage.findMergeTarget(fresh.ownerId, fresh.url, DEDUP_WINDOW_MS);
-    const record = target ? mergeVisit(target, fresh) : fresh;
+      // 时间窗内同 URL → 合并进已有记录(沿用其 id),否则新增。
+      const target = await storage.findMergeTarget(fresh.ownerId, fresh.url, DEDUP_WINDOW_MS);
+      const record = target ? mergeVisit(target, fresh) : fresh;
+      if (signal.rawContent) record.rawContentRef = record.id;
 
-    if (signal.rawContent) {
-      await storage.putContent({
-        id: record.id,
-        ownerId: record.ownerId,
-        markdown: signal.rawContent,
-        capturedAt: record.timestamp,
-      });
-      record.rawContentRef = record.id;
+      // 先存记录,保证不因正文存储失败而丢记录。
+      await storage.put(record);
+
+      if (signal.rawContent) {
+        try {
+          await storage.putContent({
+            id: record.id,
+            ownerId: record.ownerId,
+            markdown: signal.rawContent,
+            capturedAt: record.timestamp,
+          });
+        } catch (e) {
+          console.warn("[ViewMind] 正文存储失败(记录已存)", e);
+        }
+      }
+      console.info("[ViewMind] 已存记录", record.url, target ? "(合并)" : "(新增)");
+      return { saved: true };
+    } catch (e) {
+      console.error("[ViewMind] 处理 visit-signal 出错", signal?.url, e);
+      return { saved: false, reason: "error" };
     }
-    await storage.put(record);
-    return { saved: true };
   };
 
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg?.type === "visit-signal") {
+      console.info("[ViewMind] 收到 visit-signal", msg.signal?.url);
       handle(msg.signal as VisitSignal).then(sendResponse);
       return true; // 异步响应。
     }
