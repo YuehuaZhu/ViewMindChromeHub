@@ -92,7 +92,7 @@ export function ContextTimeline() {
                 {r.title}
               </a>
               <div className="timeline-item__meta">
-                {new Date(r.timestamp).toLocaleString()} · 停留 {Math.round(r.dwellMs / 1000)}s
+                {new Date(r.timestamp).toLocaleString()}
                 {(r.visitCount ?? 1) > 1 && ` · 访问 ${r.visitCount} 次`}
               </div>
               <div className="timeline-item__summary">
