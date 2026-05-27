@@ -1,8 +1,6 @@
 import { defineContentScript } from "wxt/utils/define-content-script";
 import { Readability } from "@mozilla/readability";
 import TurndownService from "turndown";
-import type { Interaction, InteractionType } from "../models/context";
-import type { VisitSignal } from "../collector/history";
 
 /** 在 document 克隆上跑 Readability（会改 DOM），抽正文转 Markdown；失败返回 undefined。 */
 function extractMarkdown(): string | undefined {
@@ -17,39 +15,29 @@ function extractMarkdown(): string | undefined {
 }
 
 /**
- * Content script：正文抽取（Readability + Turndown）+ 关键交互监听。
- * 页面隐藏时连同正文一起上报 VisitSignal。
+ * Content script：页面加载后与后台建立长连接 port。
+ * 端口存活 = 页面存活;离开页面时 port 自动断开,由后台据此计算停留并落库。
+ * 不再在页面卸载时 sendMessage(那在同标签跳转/关页时常丢失)。
  */
 export default defineContentScript({
   matches: ["<all_urls>"],
   runAt: "document_idle",
   main() {
-    const start = Date.now();
-    const interactions: Interaction[] = [];
+    const port = chrome.runtime.connect({ name: "visit" });
 
-    const record = (type: InteractionType, value: string) => {
-      if (value) interactions.push({ type, value, ts: Date.now() });
-    };
-
-    document.addEventListener("copy", () => {
-      record("copy", window.getSelection()?.toString() ?? "");
+    port.postMessage({
+      kind: "meta",
+      url: location.href,
+      title: document.title,
+      rawContent: extractMarkdown(),
+      referrer: document.referrer || undefined,
     });
 
-    let reported = false;
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState !== "hidden" || reported) return;
-      reported = true;
-      const signal: VisitSignal = {
-        url: location.href,
-        title: document.title,
-        rawContent: extractMarkdown(),
-        interactions,
-        dwellMs: Date.now() - start,
-        referrer: document.referrer || undefined,
-      };
-      console.info("[ViewMind] 上报 visit-signal", signal.url, "dwell=", signal.dwellMs);
-      // 吞掉 service worker 不在时的 lastError,避免控制台噪音。
-      chrome.runtime.sendMessage({ type: "visit-signal", signal }, () => void chrome.runtime.lastError);
+    document.addEventListener("copy", () => {
+      const value = window.getSelection()?.toString();
+      if (value) {
+        port.postMessage({ kind: "interaction", interaction: { type: "copy", value, ts: Date.now() } });
+      }
     });
   },
 });
