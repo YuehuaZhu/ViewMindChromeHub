@@ -47,7 +47,9 @@ export default defineContentScript({
         dwellMs: Date.now() - start,
         referrer: document.referrer || undefined,
       };
-      chrome.runtime.sendMessage({ type: "visit-signal", signal });
+      console.info("[ViewMind] 上报 visit-signal", signal.url, "dwell=", signal.dwellMs);
+      // 吞掉 service worker 不在时的 lastError,避免控制台噪音。
+      chrome.runtime.sendMessage({ type: "visit-signal", signal }, () => void chrome.runtime.lastError);
     });
   },
 });
