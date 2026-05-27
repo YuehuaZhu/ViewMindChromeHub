@@ -34,15 +34,12 @@ export class LocalStorageAdapter implements StorageAdapter {
   }
 
   async query(q: ContextQuery): Promise<ContextRecord[]> {
-    let coll = this.db.records
+    const coll = this.db.records
       .where("[ownerId+timestamp]")
       .between(
         [q.ownerId, q.since ?? Dexie.minKey],
         [q.ownerId, q.until ?? Dexie.maxKey],
       );
-    if (q.unsummarizedOnly) {
-      coll = coll.filter((r) => r.contentSummary === undefined);
-    }
     const rows = await coll.reverse().toArray();
     return q.limit ? rows.slice(0, q.limit) : rows;
   }

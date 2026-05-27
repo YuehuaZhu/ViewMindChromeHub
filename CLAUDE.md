@@ -1,6 +1,8 @@
 # ViewMindChromeHub — 浏览中枢:Tab 管理 + 浏览 Context 采集(数字分身底座)
 
-Chromium(Chrome/Edge)MV3 扩展。双视图主控台(扩展页 `hub.html`,点扩展图标直接打开;**不接管新标签页**):**Tab 仪表盘**(此刻开着什么)+ **Context 时间线**(浏览过什么)。后台智能过滤采集网页正文与关键交互,惰性批量调 LLM 生成结构化摘要,存到可插拔后端。**本地优先**,最终喂养数字分身。
+Chromium(Chrome/Edge)MV3 扩展。双视图主控台(扩展页 `hub.html`,点扩展图标直接打开;**不接管新标签页**):**Tab 仪表盘**(此刻开着什么)+ **Context 时间线**(浏览过什么)。后台智能过滤采集网页正文与关键交互,存到本地;可选启用后**单向推送到本地 DesktopHub**。**本地优先**,最终喂养数字分身。
+
+> **职责边界(老大 2026-05-27)**:ChromeHub 只做**采集 + 暴露**,**不含 AI 总结**。总结/聚合在 DesktopHub 完成(ChromeHub 经 HTTP 推送把 context 喂给它)。`contentSummary`/`tags` 字段保留在共享 schema 但插件不再填。
 
 完整产品背景、决策、里程碑见 [PLAN.md](PLAN.md)。
 
@@ -40,13 +42,13 @@ pnpm test                 # Vitest 单测
 ```
 ┌──────── 主控台 hub.html (src/entrypoints/hub,点图标打开) ────────┐
 │  视图 A TabDashboard   当前 tab → 域名分组·重复检测·跳转·关闭 │
-│  视图 B ContextTimeline 历史浏览结构化沉淀 → 摘要·标签·导出  │
+│  视图 B ContextTimeline 历史浏览结构化沉淀 → 正文预览·导出·批量关标签 │
 └───────────────────────┬──────────────────────────────────┘
                         ▼ 共享 tab/导航监听 + 存储层
 ┌──────── 后台引擎 (方案 C 四层) ───────────────────────────┐
 │ Collector  实时 tab 状态(→视图A) / 历史采集(→视图B)+ 智能过滤 │
-│ Processor  LLM Provider 抽象 → 惰性批量总结 → 填 summary/tags │
-│ Storage    StorageAdapter 接口,3 实现:local / file / remote │
+│ Processor  preview(正文预览截断);总结/聚合已移交 DesktopHub │
+│ Storage    local(IndexedDB,默认) / file(导出) / remote(推送) │
 │ Consumer   未来三里程碑(本计划不实现)                        │
 └────────────────────────────────────────────────────────────┘
 ```
@@ -61,10 +63,10 @@ src/
     background.ts   service worker:收 VisitSignal → 过滤 → 写本地存储
     content.ts      content script:加载后等 SETTLE_MS(~2s)仍存活则抽正文(Readability+Turndown)+ 上报 VisitSignal(页面活着时发,可靠)
     hub/            双视图主控台 hub.html(App + HubActions[导出/设置/清除] + views/TabDashboard + ContextTimeline)
-    options/        设置:LLM 服务地址/key/模型 / 黑名单 / 存储后端
+    options/        设置:DesktopHub 接入(端点+开关+二次确认)/ 黑名单 / 存储后端
   collector/        filter(黑名单+噪音) · tabState(分组/去重) · history(组装 Record) · timelineSelection(时间线区间选择+URL匹配标签)
-  processor/        llm(OpenAI 兼容 Provider) · summarize(手动批量总结) · preview(正文预览截断) · config(LLM 配置读取)
-  storage/          adapter(接口) · local(IndexedDB/Dexie:records 表 + 独立 contents 正文表) · file(导出) · remote(HTTP 上报)
+  processor/        preview(正文预览截断)   # 总结已移交 DesktopHub,插件不含 LLM
+  storage/          adapter(接口) · local(IndexedDB/Dexie:records 表 + 独立 contents 正文表) · file(导出) · remote(HTTP 推送 pushVisit) · remoteConfig(读推送配置)
   models/           context(ContextRecord + RawContent) · tab(LiveTab)
 tests/              Vitest:纯函数逻辑(filter / tabState / history / timelineSelection / preview)
 wxt.config.ts       srcDir=src,React 模块,manifest 权限 + action(无 popup,点图标开 hub)
@@ -93,6 +95,8 @@ git push origin HEAD                 # 用 +pr 创建 PR,+merge 合并
 > **`chrome` 全局类型找不到**:WXT 默认走 `browser` API,不引 `@types/chrome`。本项目用 `chrome.*`,所以装了 `@types/chrome` 并在 [tsconfig.json](tsconfig.json) 显式写 `"types": ["chrome"]` 强制注入。动这个字段前先想清楚会不会丢掉别的全局类型。
 
 > **入口必须在 `src/entrypoints/`**:PLAN 里画的 `src/background/`、`src/hub/` 是逻辑分层示意;WXT 实际要求所有入口集中在 `src/entrypoints/`,引擎层(collector/processor/storage/models)才是普通模块。
+
+> **DesktopHub 推送契约**:启用后(options 配端点+开关),每条采集落库后 `POST {endpoint}/records`,body = `{ "records": [{ "record": <ContextRecord>, "markdown": <正文,可选> }] }`;有 `apiKey` 则带 `Authorization: Bearer`。单向推送、best-effort(失败只 warn 不影响本地)。黑名单/噪音页不入库也不推送。逻辑在 [`storage/remote.ts`](src/storage/remote.ts) `pushVisit` + background 双写。DesktopHub(R2)按此 body 接收。
 
 > **主控台入口 / 点图标没反应**:主控台是普通扩展页 `hub.html`(入口目录 `entrypoints/hub`),**有意不接管新标签页**(早期接管过,老大反馈烦,已废)。manifest 不设 `default_popup`,点扩展图标由 background 的 `chrome.action.onClicked` 打开 `hub.html`。改回 popup 或加 onClicked 时注意二者互斥:有 `default_popup` 则 `onClicked` 不触发。
 

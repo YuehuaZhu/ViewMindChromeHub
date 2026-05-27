@@ -9,8 +9,6 @@ export interface ContextQuery {
   ownerId: string;
   since?: number;
   until?: number;
-  /** 仅返回尚未生成摘要的记录，供批量总结调度使用。 */
-  unsummarizedOnly?: boolean;
   limit?: number;
 }
 
