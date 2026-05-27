@@ -96,3 +96,5 @@ git push origin HEAD                 # 用 +pr 创建 PR,+merge 合并
 > **入口必须在 `src/entrypoints/`**:PLAN 里画的 `src/background/`、`src/newtab/` 是逻辑分层示意;WXT 实际要求所有入口集中在 `src/entrypoints/`,引擎层(collector/processor/storage/models)才是普通模块。
 
 > **新标签页不生效**:WXT 靠 `newtab` 入口名自动写 `chrome_url_overrides.newtab`,不要手动在 wxt.config 里再写一遍。
+
+> **快速浏览的页没进时间线**:有意为之。停留 < `MIN_DWELL_MS`(2s)**且**无关键交互的页被当作中转/重定向噪音跳过,逻辑在 [`collector/history.ts`](src/collector/history.ts) `buildRecord`,阈值是常量可调。
