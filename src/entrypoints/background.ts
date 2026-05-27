@@ -13,14 +13,16 @@ import type { ContextRecord } from "../models/context";
 export default defineBackground(() => {
   const storage = new LocalStorageAdapter();
 
-  // 远程推送配置:启动读一次,变更时刷新,避免每次采集都读 storage。
-  let remote: Awaited<ReturnType<typeof getRemoteSettings>> | null = null;
-  getRemoteSettings().then((s) => (remote = s));
-  chrome.storage.onChanged.addListener(() => getRemoteSettings().then((s) => (remote = s)));
+  // 长生命周期单例:缓存自动发现的 DesktopHub 端口,避免每次采集都重探。
+  const remoteAdapter = new RemoteStorageAdapter();
+  // 推送开关:启动读一次(默认开启),变更时刷新,避免每次采集都读 storage。
+  let remoteEnabled = true;
+  getRemoteSettings().then((s) => (remoteEnabled = s.enabled));
+  chrome.storage.onChanged.addListener(() => getRemoteSettings().then((s) => (remoteEnabled = s.enabled)));
 
   const pushRemote = (record: ContextRecord, markdown?: string): void => {
-    if (!remote?.enabled) return;
-    new RemoteStorageAdapter(remote)
+    if (!remoteEnabled) return;
+    remoteAdapter
       .pushVisit(record, markdown)
       .catch((e) => console.warn("[ViewMind] DesktopHub 推送失败(本地已存)", e));
   };
