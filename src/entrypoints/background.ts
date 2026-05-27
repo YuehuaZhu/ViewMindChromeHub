@@ -38,6 +38,11 @@ export default defineBackground(() => {
     return false;
   });
 
+  // 点扩展图标(无 popup)→ 直接打开主控台。
+  chrome.action.onClicked.addListener(() => {
+    chrome.tabs.create({ url: chrome.runtime.getURL("hub.html") });
+  });
+
   // TODO(M0): chrome.tabs / chrome.webNavigation 监听 → 停留计时；
   //           chrome.alarms 空闲触发 runBatchSummarize。
 });

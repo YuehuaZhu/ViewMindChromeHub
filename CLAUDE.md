@@ -1,6 +1,6 @@
 # ViewMindChromeHub — 浏览中枢:Tab 管理 + 浏览 Context 采集(数字分身底座)
 
-Chromium(Chrome/Edge)MV3 扩展。接管新标签页为双视图主控台:**Tab 仪表盘**(此刻开着什么)+ **Context 时间线**(浏览过什么)。后台智能过滤采集网页正文与关键交互,惰性批量调 LLM 生成结构化摘要,存到可插拔后端。**本地优先**,最终喂养数字分身。
+Chromium(Chrome/Edge)MV3 扩展。双视图主控台(扩展页 `hub.html`,点扩展图标直接打开;**不接管新标签页**):**Tab 仪表盘**(此刻开着什么)+ **Context 时间线**(浏览过什么)。后台智能过滤采集网页正文与关键交互,惰性批量调 LLM 生成结构化摘要,存到可插拔后端。**本地优先**,最终喂养数字分身。
 
 完整产品背景、决策、里程碑见 [PLAN.md](PLAN.md)。
 
@@ -33,12 +33,12 @@ pnpm compile              # 类型检查(wxt prepare && tsc --noEmit)
 pnpm test                 # Vitest 单测
 ```
 
-**加载到浏览器**:`pnpm dev` 会自动开一个装好扩展的浏览器;或手动到 `chrome://extensions` 开开发者模式 → 「加载已解压」选 `.output/chrome-mv3/`。打开新标签页即见双视图主控台。
+**加载到浏览器**:`pnpm dev` 会自动开一个装好扩展的浏览器;或手动到 `chrome://extensions` 开开发者模式 → 「加载已解压」选 `.output/chrome-mv3/`。点扩展图标即直接打开双视图主控台。
 
 ## 架构
 
 ```
-┌──────── 新标签页主控台 (src/entrypoints/newtab) ────────┐
+┌──────── 主控台 hub.html (src/entrypoints/hub,点图标打开) ────────┐
 │  视图 A TabDashboard   当前 tab → 域名分组·重复检测·跳转·关闭 │
 │  视图 B ContextTimeline 历史浏览结构化沉淀 → 摘要·标签·导出  │
 └───────────────────────┬──────────────────────────────────┘
@@ -60,15 +60,14 @@ src/
   entrypoints/      WXT 入口(WXT 约定必须放这里,不是 PLAN 里写的 src/background 等)
     background.ts   service worker:收 VisitSignal → 过滤 → 写本地存储
     content.ts      content script:Readability+Turndown 抽正文 + 交互监听 + 页面隐藏上报 VisitSignal
-    newtab/         双视图主控台(App + views/TabDashboard + views/ContextTimeline)
-    popup/          快捷:打开主控台 / 导出 / 清除 / 打开设置
+    hub/            双视图主控台 hub.html(App + HubActions[导出/设置/清除] + views/TabDashboard + ContextTimeline)
     options/        设置:API key / 黑名单 / 存储后端
   collector/        filter(黑名单+噪音) · tabState(分组/去重) · history(组装 Record) · timelineSelection(时间线区间选择+URL匹配标签)
   processor/        llm(OpenAI 兼容 Provider) · summarize(批量总结调度) · preview(正文预览截断)
   storage/          adapter(接口) · local(IndexedDB/Dexie:records 表 + 独立 contents 正文表) · file(导出) · remote(HTTP 上报)
   models/           context(ContextRecord + RawContent) · tab(LiveTab)
 tests/              Vitest:纯函数逻辑(filter / tabState / history / timelineSelection / preview)
-wxt.config.ts       srcDir=src,React 模块,manifest 权限 + newtab 由入口自动接管
+wxt.config.ts       srcDir=src,React 模块,manifest 权限 + action(无 popup,点图标开 hub)
 ```
 
 ## 开发流程
@@ -85,7 +84,7 @@ git push origin HEAD                 # 用 +pr 创建 PR,+merge 合并
 
 - 敏感域名黑名单命中**不写入历史 context**(但仪表盘仍可显示该 tab)——逻辑在 [`collector/filter.ts`](src/collector/filter.ts)。
 - API key 存 `chrome.storage.local`,UI 明示不上传;远程 adapter 必须显式配置 + 二次确认。
-- 一键清除全部数据(popup)。
+- 一键清除全部数据(主控台头部工具区 HubActions)。
 
 ## 常见问题 / 踩过的坑
 
@@ -93,9 +92,9 @@ git push origin HEAD                 # 用 +pr 创建 PR,+merge 合并
 
 > **`chrome` 全局类型找不到**:WXT 默认走 `browser` API,不引 `@types/chrome`。本项目用 `chrome.*`,所以装了 `@types/chrome` 并在 [tsconfig.json](tsconfig.json) 显式写 `"types": ["chrome"]` 强制注入。动这个字段前先想清楚会不会丢掉别的全局类型。
 
-> **入口必须在 `src/entrypoints/`**:PLAN 里画的 `src/background/`、`src/newtab/` 是逻辑分层示意;WXT 实际要求所有入口集中在 `src/entrypoints/`,引擎层(collector/processor/storage/models)才是普通模块。
+> **入口必须在 `src/entrypoints/`**:PLAN 里画的 `src/background/`、`src/hub/` 是逻辑分层示意;WXT 实际要求所有入口集中在 `src/entrypoints/`,引擎层(collector/processor/storage/models)才是普通模块。
 
-> **新标签页不生效**:WXT 靠 `newtab` 入口名自动写 `chrome_url_overrides.newtab`,不要手动在 wxt.config 里再写一遍。
+> **主控台入口 / 点图标没反应**:主控台是普通扩展页 `hub.html`(入口目录 `entrypoints/hub`),**有意不接管新标签页**(早期接管过,老大反馈烦,已废)。manifest 不设 `default_popup`,点扩展图标由 background 的 `chrome.action.onClicked` 打开 `hub.html`。改回 popup 或加 onClicked 时注意二者互斥:有 `default_popup` 则 `onClicked` 不触发。
 
 > **快速浏览的页没进时间线**:有意为之。停留 < `MIN_DWELL_MS`(2s)**且**无关键交互的页被当作中转/重定向噪音跳过,逻辑在 [`collector/history.ts`](src/collector/history.ts) `buildRecord`,阈值是常量可调。
 
