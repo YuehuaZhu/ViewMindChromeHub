@@ -126,12 +126,12 @@ ViewMindChromeHub/
 - 默认敏感域名黑名单(网银/支付/邮箱/社交私信/医疗),命中不采(注:tab 仪表盘仍可显示这些 tab,但**不写入历史 context**)。
 - 敏感字段过滤:密码框、表单输入默认不采;复制片段过敏感正则。
 - API key 存 `chrome.storage.local`,UI 明示不上传。
-- 本地优先;远程 adapter 必须显式配置 + 二次确认。
+- 本地优先;推送**默认开启**且仅指向**本机** `127.0.0.1`(数据不离开本机),用户可在设置页一键关闭。
 - 一键清除全部数据。
 
 ## 里程碑路线
 
-- **M0(本计划 MVP)✅ 端到端跑通(2026-05-27)**:双视图主控台 + Tab 仪表盘(核心子集)+ 历史采集 + 正文抽取 + 智能过滤 + 可插拔存储(local/file)+ 导出 + **HTTP 推送 DesktopHub**。已真机验收。~~插件内总结~~ 已移交 DesktopHub。遗留待打磨:停留时长(后台精确计时)、SPA 路由采集、DesktopHub 真正接收端(R2)。
+- **M0(本计划 MVP)✅ 端到端跑通(2026-05-27)**:双视图主控台 + Tab 仪表盘(核心子集)+ 历史采集 + 正文抽取 + 智能过滤 + 可插拔存储(local/file)+ 导出 + **HTTP 推送 DesktopHub**。已真机验收。~~插件内总结~~ 已移交 DesktopHub。**推送已升级为默认开启 + 多端口自动发现(127.0.0.1:7777/7778/7779)+ 极简无感设置页;DesktopHub R2 接收端已上线并真机联调通过(无配置即推送落库,含正文)**。遗留待打磨:停留时长(后台精确计时)、SPA 路由采集。
 - **M1**:浏览器内语义检索(RAG,借 personal-ai-memory)+ 当前 tab 快照入 context → 第二大脑雏形。
 - **M2**:对话型分身。
 - **M3**:行动型 Agent(借 nanobrowser/screenpipe pipe)。
@@ -142,7 +142,7 @@ ViewMindChromeHub/
 2. **Tab 仪表盘**:打开多个 tab(含同页重复、多域名)→ 确认按域名分组、重复检测标记、点击跳转到对应 tab、一键关闭生效。
 3. **历史采集**:访问 5~10 个网页(每页停 >2s)→ 视图 B/IndexedDB 确认生成 ContextRecord(早期不含停留时长)。
 4. 访问黑名单域名 → 确认**未**写入历史 context(但仪表盘可显示)。
-5. options 配 DesktopHub 端点 + 启用 → 浏览网页 → 确认端点收到 `POST /records`(record+正文);未启用不推送、端点挂了不影响本地采集。
+5. 推送默认开启:直接浏览网页(无需配置)→ 确认 DesktopHub 自动发现端口并收到 `POST /records`(record+正文);设置页可关闭(关后不推送);DesktopHub 未启动不影响本地采集。
 6. 一键导出 JSON / Markdown → 检查结构符合 ContextRecord schema。
 7. 配本地 mock HTTP endpoint → 切远程 adapter → 确认数据被 POST。
 8. Vitest 跑过滤规则、数据模型、StorageAdapter、tab 分组/去重逻辑单测。

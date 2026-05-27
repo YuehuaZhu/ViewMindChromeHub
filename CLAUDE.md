@@ -63,7 +63,7 @@ src/
     background.ts   service worker:收 VisitSignal → 过滤 → 写本地存储
     content.ts      content script:加载后等 SETTLE_MS(~2s)仍存活则抽正文(Readability+Turndown)+ 上报 VisitSignal(页面活着时发,可靠)
     hub/            双视图主控台 hub.html(App + HubActions[导出/设置/清除] + views/TabDashboard + ContextTimeline)
-    options/        设置:DesktopHub 接入(端点+开关+二次确认)/ 黑名单 / 存储后端
+    options/        设置:DesktopHub 接入(单开关,默认开,勾选即存,端口自动发现)/ 黑名单 / 存储后端
   collector/        filter(黑名单+噪音) · tabState(分组/去重) · history(组装 Record) · timelineSelection(时间线区间选择+URL匹配标签)
   processor/        preview(正文预览截断)   # 总结已移交 DesktopHub,插件不含 LLM
   storage/          adapter(接口) · local(IndexedDB/Dexie:records 表 + 独立 contents 正文表) · file(导出) · remote(HTTP 推送 pushVisit) · remoteConfig(读推送配置)
@@ -96,7 +96,7 @@ git push origin HEAD                 # 用 +pr 创建 PR,+merge 合并
 
 > **入口必须在 `src/entrypoints/`**:PLAN 里画的 `src/background/`、`src/hub/` 是逻辑分层示意;WXT 实际要求所有入口集中在 `src/entrypoints/`,引擎层(collector/processor/storage/models)才是普通模块。
 
-> **DesktopHub 推送契约**:启用后(options 配端点+开关),每条采集落库后 `POST {endpoint}/records`,body = `{ "records": [{ "record": <ContextRecord>, "markdown": <正文,可选> }] }`;有 `apiKey` 则带 `Authorization: Bearer`。单向推送、best-effort(失败只 warn 不影响本地)。黑名单/噪音页不入库也不推送。逻辑在 [`storage/remote.ts`](src/storage/remote.ts) `pushVisit` + background 双写。DesktopHub(R2)按此 body 接收。
+> **DesktopHub 推送契约**:**默认开启**(options 可关);端口**自动发现**——`probeDesktopHub` 按序探测 `GET http://127.0.0.1:{7777,7778,7779}/health`,缓存第一个响应的端口(逻辑在 [`storage/remote.ts`](src/storage/remote.ts);background 用长生命周期单例缓存,避免每次采集重探,推失败清缓存重探)。每条采集落库后 `POST http://127.0.0.1:{port}/records`,body = `{ "records": [{ "record": <ContextRecord>, "markdown": <正文,可选> }] }`;有 `apiKey` 则带 `Authorization: Bearer`。单向推送、best-effort(失败只 warn 不影响本地)。黑名单/噪音页不入库也不推送。DesktopHub 的 serve 按同序候选端口绑定,双方无感对接。
 
 > **主控台入口 / 点图标没反应**:主控台是普通扩展页 `hub.html`(入口目录 `entrypoints/hub`),**有意不接管新标签页**(早期接管过,老大反馈烦,已废)。manifest 不设 `default_popup`,点扩展图标由 background 的 `chrome.action.onClicked` 打开 `hub.html`。改回 popup 或加 onClicked 时注意二者互斥:有 `default_popup` 则 `onClicked` 不触发。
 
