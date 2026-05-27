@@ -1,6 +1,7 @@
 import { defineConfig } from "wxt";
 
-// WXT 配置：srcDir=src，React 模块，MV3 manifest（newtab 由 newtab 入口自动接管）。
+// WXT 配置：srcDir=src，React 模块，MV3 manifest。
+// 主控台是普通扩展页 hub.html（不接管新标签页），由 popup「打开主控台」用 getURL 打开。
 export default defineConfig({
   srcDir: "src",
   modules: ["@wxt-dev/module-react"],

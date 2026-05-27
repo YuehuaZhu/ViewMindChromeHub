@@ -20,7 +20,7 @@ function Popup() {
   };
 
   const openHub = () => {
-    chrome.tabs.create({ url: chrome.runtime.getURL("newtab.html") });
+    chrome.tabs.create({ url: chrome.runtime.getURL("hub.html") });
   };
 
   return (
