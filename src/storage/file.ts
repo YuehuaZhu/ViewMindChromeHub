@@ -2,8 +2,28 @@ import type { ContextRecord } from "../models/context";
 
 /** 文件导出（JSON / Markdown）。导出是单向操作，不实现 StorageAdapter 全部读写。 */
 
+/** 毫秒转可读时长：1h20m / 9m32s / 29s。 */
+export function formatDuration(ms: number): string {
+  const totalSec = Math.max(0, Math.round(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}h${m}m`;
+  if (m > 0) return `${m}m${s}s`;
+  return `${s}s`;
+}
+
+/** 导出 DTO：保留原始 epoch/ms 供机器用，另加可读 time/dwell 供人看。 */
+export function toExportRecord(r: ContextRecord) {
+  return {
+    ...r,
+    time: new Date(r.timestamp).toLocaleString("zh-CN"),
+    dwell: formatDuration(r.dwellMs),
+  };
+}
+
 export function exportAsJson(records: ContextRecord[]): string {
-  return JSON.stringify(records, null, 2);
+  return JSON.stringify(records.map(toExportRecord), null, 2);
 }
 
 export function exportAsMarkdown(records: ContextRecord[]): string {

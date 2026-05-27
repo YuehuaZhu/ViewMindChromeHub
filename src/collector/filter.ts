@@ -31,16 +31,27 @@ export function isBlocked(url: string, blocklist: string[] = DEFAULT_BLOCKLIST):
   return blocklist.some((p) => matchesPattern(domain, p));
 }
 
-/** 噪音过滤：about:/chrome:/扩展页/空标签等不值得采集。 */
+/** 验证/中转/重定向类中间页，本身无阅读价值，视为噪音。 */
+const NOISE_URL_PATTERNS: RegExp[] = [
+  /:\/\/wappass\.baidu\.com\//i, // 百度安全验证
+  /:\/\/[^/]+\/sorry\//i, // google.com/sorry 等验证/限流页
+  /:\/\/www\.baidu\.com\/link\?/i, // 百度搜索结果跳转中转
+  /\/captcha/i, // 通用 captcha 页
+];
+
+/** 噪音过滤：about:/chrome:/扩展页/空标签 + 验证/中转中间页等不值得采集。 */
 export function isNoise(url: string): boolean {
-  return (
+  if (
     !url ||
     url.startsWith("about:") ||
     url.startsWith("chrome:") ||
     url.startsWith("chrome-extension:") ||
     url.startsWith("edge:") ||
     url === "chrome://newtab/"
-  );
+  ) {
+    return true;
+  }
+  return NOISE_URL_PATTERNS.some((re) => re.test(url));
 }
 
 /** 是否应写入历史 context。 */

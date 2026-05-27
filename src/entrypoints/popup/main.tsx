@@ -19,9 +19,30 @@ function Popup() {
     }
   };
 
+  const openHub = () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL("newtab.html") });
+  };
+
   return (
-    <div style={{ fontFamily: "system-ui", padding: 12 }}>
+    <div style={{ fontFamily: "system-ui", padding: 12, minWidth: 220 }}>
       <h3 style={{ marginTop: 0 }}>ViewMind 浏览中枢</h3>
+      <button
+        onClick={openHub}
+        style={{
+          display: "block",
+          width: "100%",
+          marginBottom: 10,
+          padding: "8px 0",
+          fontWeight: 600,
+          color: "#fff",
+          background: "#2563eb",
+          border: "none",
+          borderRadius: 8,
+          cursor: "pointer",
+        }}
+      >
+        打开主控台
+      </button>
       <button onClick={exportJson}>导出 JSON</button>
       <button onClick={() => chrome.runtime.openOptionsPage()}>设置</button>
       <button onClick={clearAll} style={{ color: "crimson" }}>
