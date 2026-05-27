@@ -61,9 +61,9 @@ src/
     background.ts   service worker:收 VisitSignal → 过滤 → 写本地存储
     content.ts      content script:加载后等 SETTLE_MS(~2s)仍存活则抽正文(Readability+Turndown)+ 上报 VisitSignal(页面活着时发,可靠)
     hub/            双视图主控台 hub.html(App + HubActions[导出/设置/清除] + views/TabDashboard + ContextTimeline)
-    options/        设置:API key / 黑名单 / 存储后端
+    options/        设置:LLM 服务地址/key/模型 / 黑名单 / 存储后端
   collector/        filter(黑名单+噪音) · tabState(分组/去重) · history(组装 Record) · timelineSelection(时间线区间选择+URL匹配标签)
-  processor/        llm(OpenAI 兼容 Provider) · summarize(批量总结调度) · preview(正文预览截断)
+  processor/        llm(OpenAI 兼容 Provider) · summarize(手动批量总结) · preview(正文预览截断) · config(LLM 配置读取)
   storage/          adapter(接口) · local(IndexedDB/Dexie:records 表 + 独立 contents 正文表) · file(导出) · remote(HTTP 上报)
   models/           context(ContextRecord + RawContent) · tab(LiveTab)
 tests/              Vitest:纯函数逻辑(filter / tabState / history / timelineSelection / preview)

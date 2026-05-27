@@ -129,7 +129,7 @@ ViewMindChromeHub/
 
 ## 里程碑路线
 
-- **M0(本计划 MVP)**:双视图主控台 + Tab 仪表盘(核心子集)+ 历史采集 + 智能过滤 + 惰性批量总结 + 可插拔存储 + 导出。
+- **M0(本计划 MVP)✅ 端到端跑通(2026-05-27)**:双视图主控台 + Tab 仪表盘(核心子集)+ 历史采集 + 智能过滤 + 手动批量总结 + 可插拔存储(local/file 完成、remote 仅桩)+ 导出。已真机验收。遗留待打磨:远程 adapter 落地、停留时长(后台精确计时)、空闲自动总结、SPA 路由采集。
 - **M1**:浏览器内语义检索(RAG,借 personal-ai-memory)+ 当前 tab 快照入 context → 第二大脑雏形。
 - **M2**:对话型分身。
 - **M3**:行动型 Agent(借 nanobrowser/screenpipe pipe)。
