@@ -7,8 +7,11 @@ import { REMOTE_KEYS } from "../../storage/remoteConfig";
  * 设置页：DesktopHub 接入(推送)/ 黑名单 / 存储后端。
  * 配置存 chrome.storage.local，UI 明示不上传第三方。总结/聚合在 DesktopHub 完成,插件不含 LLM。
  */
+/** 本地 DesktopHub 接收端默认地址(可在下方改)。 */
+const DEFAULT_ENDPOINT = "http://127.0.0.1:7777";
+
 function Options() {
-  const [endpoint, setEndpoint] = useState("");
+  const [endpoint, setEndpoint] = useState(DEFAULT_ENDPOINT);
   const [apiKey, setApiKey] = useState("");
   const [enabled, setEnabled] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -18,19 +21,15 @@ function Options() {
       .get([REMOTE_KEYS.endpoint, REMOTE_KEYS.apiKey, REMOTE_KEYS.enabled])
       .then((raw) => {
         const v = raw as Record<string, unknown>;
-        setEndpoint((v[REMOTE_KEYS.endpoint] as string) ?? "");
+        // 没存过端点时预设默认值,省去手填。
+        setEndpoint((v[REMOTE_KEYS.endpoint] as string) || DEFAULT_ENDPOINT);
         setApiKey((v[REMOTE_KEYS.apiKey] as string) ?? "");
         setEnabled(Boolean(v[REMOTE_KEYS.enabled]));
       });
   }, []);
 
-  // 启用推送需二次确认(隐私红线:远程上报必须显式同意)。
-  const onToggleEnabled = (next: boolean) => {
-    if (next && !confirm("启用后,采集到的网页记录与正文将被推送到你配置的 DesktopHub 端点。确认启用?")) {
-      return;
-    }
-    setEnabled(next);
-  };
+  // 勾选即切换;显式同意由「保存」这一步承担(嵌入式选项页会屏蔽 window.confirm,故不用弹窗)。
+  const onToggleEnabled = (next: boolean) => setEnabled(next);
 
   const save = async () => {
     await chrome.storage.local.set({
@@ -64,7 +63,7 @@ function Options() {
           端点 URL
           <input
             value={endpoint}
-            placeholder="http://127.0.0.1:8765"
+            placeholder="http://127.0.0.1:7777"
             onChange={(e) => setEndpoint(e.target.value)}
             style={{ width: "100%" }}
           />
