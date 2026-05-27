@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { DEFAULT_OWNER_ID, type ContextRecord } from "../../../models/context";
 import { LocalStorageAdapter } from "../../../storage/local";
-import { matchTabsToClose, selectThisAndNewer } from "../../../collector/timelineSelection";
+import { matchTabsToClose, selectThisAndOlder } from "../../../collector/timelineSelection";
 import "./ContextTimeline.css";
 
 const storage = new LocalStorageAdapter();
@@ -25,8 +25,8 @@ export function ContextTimeline() {
     setStatus(null);
   };
 
-  const pickThisAndNewer = (id: string) => {
-    setSelected((prev) => new Set([...prev, ...selectThisAndNewer(records, id)]));
+  const pickThisAndOlder = (id: string) => {
+    setSelected((prev) => new Set([...prev, ...selectThisAndOlder(records, id)]));
     setStatus(null);
   };
 
@@ -87,8 +87,8 @@ export function ContextTimeline() {
             </div>
             <button
               className="timeline-item__pick"
-              onClick={() => pickThisAndNewer(r.id)}
-              title="勾选此条及所有更新的记录"
+              onClick={() => pickThisAndOlder(r.id)}
+              title="勾选此条及列表中更靠下(更旧)的所有记录"
             >
               选此条及之后
             </button>
