@@ -3,21 +3,52 @@ import { DEFAULT_OWNER_ID, type ContextRecord } from "../../../models/context";
 import { LocalStorageAdapter } from "../../../storage/local";
 import { matchTabsToClose, selectThisAndOlder } from "../../../collector/timelineSelection";
 import { contentPreview } from "../../../processor/preview";
+import { getLLMConfig } from "../../../processor/config";
+import { OpenAICompatibleProvider } from "../../../processor/llm";
+import { runBatchSummarize } from "../../../processor/summarize";
 import "./ContextTimeline.css";
 
 const storage = new LocalStorageAdapter();
 
-/** 视图 B：历史浏览结构化沉淀时间线 + 按时间点批量关闭对应仍打开的标签。 */
+/** 视图 B：历史浏览结构化沉淀时间线 + 手动批量总结 + 按时间点批量关闭对应仍打开的标签。 */
 export function ContextTimeline() {
   const [records, setRecords] = useState<ContextRecord[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [status, setStatus] = useState<string | null>(null);
-  // 正文按需懒加载：id → 预览文本（不进时间线查询，保持其轻量）。
+  const [closeStatus, setCloseStatus] = useState<string | null>(null);
   const [previews, setPreviews] = useState<Record<string, string>>({});
+  const [summarizing, setSummarizing] = useState(false);
+  const [summaryStatus, setSummaryStatus] = useState<string | null>(null);
+
+  const refresh = () => storage.query({ ownerId: DEFAULT_OWNER_ID, limit: 100 }).then(setRecords);
 
   useEffect(() => {
-    storage.query({ ownerId: DEFAULT_OWNER_ID, limit: 100 }).then(setRecords);
+    refresh();
   }, []);
+
+  const unsummarized = records.filter((r) => !r.contentSummary).length;
+
+  const summarize = async () => {
+    const config = await getLLMConfig();
+    if (!config) {
+      alert("请先点右上「设置」填写 LLM 服务地址与 API key。");
+      return;
+    }
+    setSummarizing(true);
+    setSummaryStatus(null);
+    try {
+      const provider = new OpenAICompatibleProvider(config);
+      const loadContent = async (id: string) =>
+        (await storage.getContent({ ownerId: DEFAULT_OWNER_ID }, id))?.markdown;
+      const { done, failed } = await runBatchSummarize(storage, provider, loadContent);
+      await refresh();
+      setSummaryStatus(`总结完成:成功 ${done} 条${failed ? `,失败 ${failed} 条` : ""}`);
+    } catch (e) {
+      setSummaryStatus("总结出错,请检查设置或网络。");
+      console.warn("[ViewMind] 批量总结出错", e);
+    } finally {
+      setSummarizing(false);
+    }
+  };
 
   const togglePreview = async (id: string) => {
     if (previews[id] !== undefined) {
@@ -38,12 +69,12 @@ export function ContextTimeline() {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-    setStatus(null);
+    setCloseStatus(null);
   };
 
   const pickThisAndOlder = (id: string) => {
     setSelected((prev) => new Set([...prev, ...selectThisAndOlder(records, id)]));
-    setStatus(null);
+    setCloseStatus(null);
   };
 
   const closeSelected = async () => {
@@ -56,7 +87,7 @@ export function ContextTimeline() {
     const { tabIds, unmatchedRecordCount } = matchTabsToClose(selectedRecords, openTabs);
     if (tabIds.length) await chrome.tabs.remove(tabIds);
 
-    setStatus(
+    setCloseStatus(
       `已关闭 ${tabIds.length} 个标签` +
         (unmatchedRecordCount > 0 ? `,${unmatchedRecordCount} 条记录对应的页已不在打开状态` : ""),
     );
@@ -69,6 +100,13 @@ export function ContextTimeline() {
 
   return (
     <>
+      <div className="timeline-toolbar">
+        <button onClick={summarize} disabled={summarizing || unsummarized === 0}>
+          {summarizing ? "总结中…" : `立即总结 ${unsummarized} 条`}
+        </button>
+        {summaryStatus && <span className="timeline-toolbar__status">{summaryStatus}</span>}
+      </div>
+
       <ul className="timeline">
         {records.map((r) => (
           <li
@@ -83,21 +121,15 @@ export function ContextTimeline() {
               aria-label="选择此记录"
             />
             <div className="timeline-item__body">
-              <a
-                className="timeline-item__title"
-                href={r.url}
-                target="_blank"
-                rel="noreferrer"
-              >
+              <a className="timeline-item__title" href={r.url} target="_blank" rel="noreferrer">
                 {r.title}
               </a>
               <div className="timeline-item__meta">
                 {new Date(r.timestamp).toLocaleString()}
                 {(r.visitCount ?? 1) > 1 && ` · 访问 ${r.visitCount} 次`}
+                {r.contentSummary && <span className="timeline-item__badge">✓ 已总结</span>}
               </div>
-              <div className="timeline-item__summary">
-                {r.contentSummary ?? <em>尚未总结</em>}
-              </div>
+              {r.contentSummary && <div className="timeline-item__summary">{r.contentSummary}</div>}
               {r.tags.length > 0 && (
                 <div className="timeline-item__tags">{r.tags.map((t) => `#${t}`).join(" ")}</div>
               )}
@@ -122,7 +154,7 @@ export function ContextTimeline() {
       </ul>
 
       <div className="timeline-bar">
-        {status && <span className="timeline-bar__status">{status}</span>}
+        {closeStatus && <span className="timeline-bar__status">{closeStatus}</span>}
         <button
           className="timeline-bar__close"
           disabled={selected.size === 0}

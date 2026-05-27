@@ -1,17 +1,22 @@
-import { DEFAULT_OWNER_ID, type ContextRecord } from "../models/context";
+import { DEFAULT_OWNER_ID } from "../models/context";
 import type { StorageAdapter } from "../storage/adapter";
 import type { LLMProvider } from "./llm";
 
+export interface SummarizeProgress {
+  done: number;
+  failed: number;
+}
+
 /**
- * 惰性/批量总结：拉取未摘要记录 → 逐条调 LLM → 回写 summary + tags。
- * 由 background 在空闲或手动触发时调度，省 token。
- * TODO(M0): 接入正文（rawContentRef 解引用）、失败重试、并发上限。
+ * 批量总结：拉未摘要记录 → 取正文(独立内容表)→ 调 LLM → 回写 summary + tags。
+ * 手动触发,带上限省 token;逐条容错,单条失败跳过不中断。
  */
 export async function runBatchSummarize(
   storage: StorageAdapter,
   llm: LLMProvider,
+  loadContent: (id: string) => Promise<string | undefined>,
   opts: { ownerId?: string; limit?: number } = {},
-): Promise<number> {
+): Promise<SummarizeProgress> {
   const ownerId = opts.ownerId ?? DEFAULT_OWNER_ID;
   const pending = await storage.query({
     ownerId,
@@ -20,12 +25,17 @@ export async function runBatchSummarize(
   });
 
   let done = 0;
+  let failed = 0;
   for (const record of pending) {
-    const content = record.rawContentRef ?? record.title;
-    const { summary, tags } = await llm.summarize(record.title, content);
-    const updated: ContextRecord = { ...record, contentSummary: summary, tags };
-    await storage.put(updated);
-    done++;
+    try {
+      const content = (await loadContent(record.id)) ?? record.title;
+      const { summary, tags } = await llm.summarize(record.title, content);
+      await storage.put({ ...record, contentSummary: summary, tags });
+      done++;
+    } catch (e) {
+      console.warn("[ViewMind] 总结失败,跳过", record.url, e);
+      failed++;
+    }
   }
-  return done;
+  return { done, failed };
 }

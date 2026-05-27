@@ -43,7 +43,6 @@ export default defineContentScript({
         interactions,
         referrer: document.referrer || undefined,
       };
-      console.info("[ViewMind] 上报 visit", signal.url);
       chrome.runtime.sendMessage({ type: "visit", signal }, () => void chrome.runtime.lastError);
     }, SETTLE_MS);
   },
