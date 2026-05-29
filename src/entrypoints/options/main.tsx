@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { DEFAULT_BLOCKLIST } from "../../collector/filter";
-import { getRemoteSettings, setRemoteEnabled, getOwSettings, setOwEnabled, setOwToken } from "../../storage/remoteConfig";
+import { getRemoteSettings, setRemoteEnabled } from "../../storage/remoteConfig";
 import { DEFAULT_HOST, probeDesktopHub } from "../../storage/remote";
-import { probeOpenWhispr, OW_HOST } from "../../storage/openwhispr";
 import { getOrCreateDeviceId, getDeviceLabel, setDeviceLabel } from "../../storage/deviceIdentity";
 
 /**
@@ -14,21 +13,12 @@ function Options() {
   const [enabled, setEnabled] = useState(true);
   const [port, setPort] = useState<number | null | undefined>(null);
 
-  const [owEnabled, setOwEnabledState] = useState(true);
-  const [owPort, setOwPort] = useState<number | null | undefined>(null);
-  const [owToken, setOwTokenState] = useState("");
-
   const [deviceId, setDeviceIdState] = useState("");
   const [deviceLabel, setDeviceLabelState] = useState("");
 
   useEffect(() => {
     getRemoteSettings().then((s) => setEnabled(s.enabled));
     refreshStatus();
-    getOwSettings().then((s) => {
-      setOwEnabledState(s.enabled);
-      setOwTokenState(s.token ?? "");
-    });
-    refreshOwStatus();
     getOrCreateDeviceId().then(setDeviceIdState);
     getDeviceLabel().then(setDeviceLabelState);
   }, []);
@@ -38,25 +28,10 @@ function Options() {
     probeDesktopHub().then(setPort);
   };
 
-  const refreshOwStatus = (): void => {
-    setOwPort(null);
-    probeOpenWhispr().then(setOwPort);
-  };
-
   const onToggle = async (next: boolean): Promise<void> => {
     setEnabled(next);
     await setRemoteEnabled(next);
     if (next) refreshStatus();
-  };
-
-  const onOwToggle = async (next: boolean): Promise<void> => {
-    setOwEnabledState(next);
-    await setOwEnabled(next);
-    if (next) refreshOwStatus();
-  };
-
-  const onOwTokenBlur = async (): Promise<void> => {
-    await setOwToken(owToken);
   };
 
   const status =
@@ -69,18 +44,6 @@ function Options() {
       </span>
     ) : (
       <span style={{ color: "green" }}>已连接 {DEFAULT_HOST}:{port}</span>
-    );
-
-  const owStatus =
-    owPort === null ? (
-      <span style={{ color: "#888" }}>检测中…</span>
-    ) : owPort === undefined ? (
-      <span style={{ color: "#b45309" }}>
-        未发现 OpenWhispr(确认桌面应用已启动)
-        <button onClick={refreshOwStatus} style={{ marginLeft: 8 }}>重试</button>
-      </span>
-    ) : (
-      <span style={{ color: "green" }}>已连接 {OW_HOST}:{owPort}</span>
     );
 
   return (
@@ -97,33 +60,6 @@ function Options() {
           启用推送到 DesktopHub
         </label>
         <p style={{ fontSize: 13, margin: "4px 0 0" }}>连接状态：{status}</p>
-      </section>
-
-      <section style={{ marginTop: 24 }}>
-        <h2>OpenWhispr 接入(Chat Overlay 上下文)</h2>
-        <p style={{ color: "#666", fontSize: 13 }}>
-          开启后每次采集到页面正文时，同步推送到本机 OpenWhispr Chat Overlay，
-          按快捷键唤起时自动注入当前页上下文。端口自动发现(8200-8219)，默认开启。
-        </p>
-        <label style={{ display: "block", marginBottom: 8, fontSize: 15 }}>
-          <input type="checkbox" checked={owEnabled} onChange={(e) => void onOwToggle(e.target.checked)} />{" "}
-          启用推送到 OpenWhispr
-        </label>
-        <p style={{ fontSize: 13, margin: "4px 0 8px" }}>连接状态：{owStatus}</p>
-        <label style={{ display: "block", fontSize: 13, color: "#555" }}>
-          CLI Bridge Token（可选，留空则不带认证）
-          <input
-            type="password"
-            value={owToken}
-            onChange={(e) => setOwTokenState(e.target.value)}
-            onBlur={() => void onOwTokenBlur()}
-            placeholder="owk_live_…"
-            style={{ display: "block", marginTop: 4, width: "100%", padding: "4px 8px", fontSize: 13, boxSizing: "border-box" }}
-          />
-        </label>
-        <p style={{ fontSize: 12, color: "#999", marginTop: 4 }}>
-          Token 在 OpenWhispr → 设置 → 系统 → CLI Bridge Token 里获取（本地使用通常不需要）。
-        </p>
       </section>
 
       <section style={{ marginTop: 24 }}>

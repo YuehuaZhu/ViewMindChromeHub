@@ -133,7 +133,7 @@ ViewMindChromeHub/
 
 - **M0(本计划 MVP)✅ 端到端跑通(2026-05-27)**:双视图主控台 + Tab 仪表盘(核心子集)+ 历史采集 + 正文抽取 + 智能过滤 + 可插拔存储(local/file)+ 导出 + **HTTP 推送 DesktopHub**。已真机验收。~~插件内总结~~ 已移交 DesktopHub。**推送已升级为默认开启 + 多端口自动发现(127.0.0.1:7777/7778/7779)+ 极简无感设置页;DesktopHub R2 接收端已上线并真机联调通过(无配置即推送落库,含正文)**。遗留待打磨:停留时长(后台精确计时)、SPA 路由采集。
 - **M1**:浏览器内语义检索(RAG,借 personal-ai-memory)+ 当前 tab 快照入 context → 第二大脑雏形。
-- **M2(Issue #29 ✅ 2026-05-29)**:OpenWhispr 全局 Chat 上下文桥。架构评审后调整：ChromeHub 保持采集职责不变，落库后**双推**——DesktopHub(7777-7779) + **OpenWhispr Chat Overlay(8200-8219)**；OpenWhispr 承接全局语音/AI对话（覆盖浏览器/PDF/任意App）。新增 `src/storage/openwhispr.ts` adapter + 设置页 OpenWhispr 区块；probe 超时修复（AbortSignal.timeout 2s）。OpenWhispr 侧扩展计划见 VoxEdit `PLAN-global-chat.md`。
+- **M2(Issue #29 ✅ 2026-05-29 → 架构纠偏 #37 ✅ 2026-05-29)**:OpenWhispr 全局 Chat 上下文桥。初版实现"双推"（DesktopHub + OpenWhispr），但违反单管道原则——ChromeHub 不应感知下游消费方。**架构纠偏**：移除 ChromeHub→OpenWhispr 直推路径，恢复单一上游（ChromeHub→DesktopHub）。OpenWhispr 等消费方通过 `viewmind-hub recent --type browser` CLI 按需拉取，与 ChromeHub 解耦。
 - **M3**:行动型 Agent(借 nanobrowser/screenpipe pipe)。
 
 ## 验证方式(MVP 端到端)
@@ -153,3 +153,9 @@ ViewMindChromeHub/
 - WXT vs Vite+CRXJS 最终选型(实施第一步快速验证后定)。
 - UI 框架 React vs Preact(体积敏感选 Preact)。
 - 远程 adapter 协议细节(等服务器端形态确定);是否首版即接 mem0。
+
+---
+
+## 子计划
+
+- **R2.5 联动 — collector 标准能力对齐**:见 [`PLAN-collector-protocol.md`](./PLAN-collector-protocol.md)。作为 DesktopHub 开放采集协议的第一个真实 collector,需对齐 Outbox(离线缓冲+幂等补传)+ Device Identity(deviceId,存 `chrome.storage.local`),并补复制粘贴链增强(服务多源融合)。主文档见 `../ViewMindDesktopHub/PLAN-collector-protocol.md`。
