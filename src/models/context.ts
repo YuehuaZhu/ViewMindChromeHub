@@ -32,6 +32,11 @@ export interface ContextRecord {
     referrer?: string;
     fromUrl?: string;
   };
+  /**
+   * Outbox 同步状态：pending = 待推送到 DesktopHub；synced = 已成功推送。
+   * undefined 表示旧数据（向后兼容，不重推）。
+   */
+  syncState?: "pending" | "synced";
 }
 
 /** 单人期固定 ownerId；商业化多租户时由鉴权上下文注入。 */
