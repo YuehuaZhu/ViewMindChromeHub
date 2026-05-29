@@ -2,8 +2,7 @@ import { defineBackground } from "wxt/utils/define-background";
 import { buildRecord, mergeVisit, startOfLocalDay, type VisitSignal } from "../collector/history";
 import { LocalStorageAdapter } from "../storage/local";
 import { RemoteStorageAdapter } from "../storage/remote";
-import { OpenWhisprAdapter } from "../storage/openwhispr";
-import { getRemoteSettings, getOwSettings } from "../storage/remoteConfig";
+import { getRemoteSettings } from "../storage/remoteConfig";
 import { getOrCreateDeviceId, getDeviceLabel } from "../storage/deviceIdentity";
 import type { ContextRecord } from "../models/context";
 
@@ -15,9 +14,8 @@ const OUTBOX_ALARM = "viewmind-outbox-flush";
 /**
  * 后台 service worker：接收 content script 在页面存活满 ~2s 时上报的 VisitSignal → 落库。
  * 同 URL 当天内合并(次日重新计数);有正文则存入独立内容表并回填 rawContentRef。
- * 落库后双向推送(均 best-effort)：
- *   1. DesktopHub（7777-7779）：AI 总结/聚合；失败自动进 Outbox，等上线后补传
- *   2. OpenWhispr（8200-8219）：全局 Chat Overlay 上下文注入
+ * 落库后单向推送到 DesktopHub（7777-7779，best-effort，失败进 Outbox 补传）。
+ * 下游消费方（OpenWhispr 等）通过 DesktopHub CLI 按需拉取，不在此直推。
  */
 export default defineBackground(async () => {
   const storage = new LocalStorageAdapter();
@@ -30,9 +28,11 @@ export default defineBackground(async () => {
   const remoteAdapter = new RemoteStorageAdapter();
   let remoteEnabled = true;
   getRemoteSettings().then((s) => (remoteEnabled = s.enabled));
-  chrome.storage.onChanged.addListener(() =>
-    getRemoteSettings().then((s) => (remoteEnabled = s.enabled)),
-  );
+  chrome.storage.onChanged.addListener((changes) => {
+    if ("remoteEnabled" in changes) {
+      getRemoteSettings().then((s) => (remoteEnabled = s.enabled));
+    }
+  });
 
   /**
    * 尝试推送一条记录到 DesktopHub。
@@ -68,27 +68,6 @@ export default defineBackground(async () => {
     if (alarm.name === OUTBOX_ALARM) void flushPending();
   });
 
-  // ── OpenWhispr 推送 ────────────────────────────────────────────────────────
-  const owAdapter = new OpenWhisprAdapter();
-  let owEnabled = true;
-  getOwSettings().then((s) => {
-    owEnabled = s.enabled;
-    owAdapter.updateToken(s.token);
-  });
-  chrome.storage.onChanged.addListener(() =>
-    getOwSettings().then((s) => {
-      owEnabled = s.enabled;
-      owAdapter.updateToken(s.token);
-    }),
-  );
-
-  const pushOpenWhispr = (record: ContextRecord, markdown?: string): void => {
-    if (!owEnabled) return;
-    owAdapter
-      .pushContext(record, markdown)
-      .catch((e) => console.warn("[ViewMind] OpenWhispr 推送失败(本地已存)", e));
-  };
-
   const save = async (signal: VisitSignal): Promise<{ saved: boolean; reason?: string }> => {
     try {
       const fresh = buildRecord(signal);
@@ -117,8 +96,7 @@ export default defineBackground(async () => {
           console.warn("[ViewMind] 正文存储失败(记录已存)", e);
         }
       }
-      pushRemote(record, signal.rawContent);       // → DesktopHub（成功后 markSynced）
-      pushOpenWhispr(record, signal.rawContent);   // → OpenWhispr Chat Overlay
+      pushRemote(record, signal.rawContent);   // → DesktopHub（成功后 markSynced）
       return { saved: true };
     } catch (e) {
       console.error("[ViewMind] 落库出错", signal?.url, e);

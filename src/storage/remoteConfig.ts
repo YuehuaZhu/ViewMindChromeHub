@@ -28,38 +28,3 @@ export async function setRemoteEnabled(enabled: boolean): Promise<void> {
   await chrome.storage.local.set({ [REMOTE_KEYS.enabled]: enabled });
 }
 
-// ── OpenWhispr 配置 ────────────────────────────────────────────────────────
-
-/** OpenWhispr cliBridge 配置在 chrome.storage.local 的键。 */
-export const OW_KEYS = {
-  enabled: "owEnabled",
-  token: "owToken",
-} as const;
-
-export interface OwSettings {
-  /** 是否推送到本机 OpenWhispr Chat Overlay。默认开启。 */
-  enabled: boolean;
-  /** cliBridge Bearer token（可选；本地无 auth 时留空）。 */
-  token?: string;
-}
-
-/** 读取 OpenWhispr 配置。未设置过 enabled 时默认 true。 */
-export async function getOwSettings(): Promise<OwSettings> {
-  const v = (await chrome.storage.local.get([OW_KEYS.enabled, OW_KEYS.token])) as Record<
-    string,
-    unknown
-  >;
-  const rawEnabled = v[OW_KEYS.enabled];
-  return {
-    enabled: rawEnabled === undefined ? true : Boolean(rawEnabled),
-    token: (v[OW_KEYS.token] as string) || undefined,
-  };
-}
-
-export async function setOwEnabled(enabled: boolean): Promise<void> {
-  await chrome.storage.local.set({ [OW_KEYS.enabled]: enabled });
-}
-
-export async function setOwToken(token: string): Promise<void> {
-  await chrome.storage.local.set({ [OW_KEYS.token]: token || null });
-}
