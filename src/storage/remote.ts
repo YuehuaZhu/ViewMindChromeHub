@@ -27,10 +27,13 @@ export async function probeDesktopHub(
 ): Promise<number | undefined> {
   for (const port of ports) {
     try {
-      const res = await fetch(`http://${host}:${port}/health`, { method: "GET" });
+      const res = await fetch(`http://${host}:${port}/health`, {
+        method: "GET",
+        signal: AbortSignal.timeout(2000),
+      });
       if (res.ok) return port;
     } catch {
-      // 该端口没起服务,试下一个
+      // 该端口没起服务或超时,试下一个
     }
   }
   return undefined;

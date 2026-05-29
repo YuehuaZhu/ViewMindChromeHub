@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { DEFAULT_BLOCKLIST } from "../../collector/filter";
-import { getRemoteSettings, setRemoteEnabled } from "../../storage/remoteConfig";
+import { getRemoteSettings, setRemoteEnabled, getOwSettings, setOwEnabled, setOwToken } from "../../storage/remoteConfig";
 import { DEFAULT_HOST, probeDesktopHub } from "../../storage/remote";
+import { probeOpenWhispr, OW_HOST } from "../../storage/openwhispr";
 
 /**
  * 设置页：DesktopHub 接入(推送)/ 黑名单 / 存储后端。
@@ -10,12 +11,20 @@ import { DEFAULT_HOST, probeDesktopHub } from "../../storage/remote";
  */
 function Options() {
   const [enabled, setEnabled] = useState(true);
-  // null = 检测中;number = 已连端口;undefined = 未发现
   const [port, setPort] = useState<number | null | undefined>(null);
+
+  const [owEnabled, setOwEnabledState] = useState(true);
+  const [owPort, setOwPort] = useState<number | null | undefined>(null);
+  const [owToken, setOwTokenState] = useState("");
 
   useEffect(() => {
     getRemoteSettings().then((s) => setEnabled(s.enabled));
     refreshStatus();
+    getOwSettings().then((s) => {
+      setOwEnabledState(s.enabled);
+      setOwTokenState(s.token ?? "");
+    });
+    refreshOwStatus();
   }, []);
 
   const refreshStatus = (): void => {
@@ -23,11 +32,25 @@ function Options() {
     probeDesktopHub().then(setPort);
   };
 
-  // 勾选即存(无保存按钮);开启后顺手刷新连接状态。
+  const refreshOwStatus = (): void => {
+    setOwPort(null);
+    probeOpenWhispr().then(setOwPort);
+  };
+
   const onToggle = async (next: boolean): Promise<void> => {
     setEnabled(next);
     await setRemoteEnabled(next);
     if (next) refreshStatus();
+  };
+
+  const onOwToggle = async (next: boolean): Promise<void> => {
+    setOwEnabledState(next);
+    await setOwEnabled(next);
+    if (next) refreshOwStatus();
+  };
+
+  const onOwTokenBlur = async (): Promise<void> => {
+    await setOwToken(owToken);
   };
 
   const status =
@@ -35,12 +58,23 @@ function Options() {
       <span style={{ color: "#888" }}>检测中…</span>
     ) : port === undefined ? (
       <span style={{ color: "#b45309" }}>
-        未发现 DesktopHub(确认桌面端已启动)<button onClick={refreshStatus} style={{ marginLeft: 8 }}>重试</button>
+        未发现 DesktopHub(确认桌面端已启动)
+        <button onClick={refreshStatus} style={{ marginLeft: 8 }}>重试</button>
       </span>
     ) : (
-      <span style={{ color: "green" }}>
-        已连接 {DEFAULT_HOST}:{port}
+      <span style={{ color: "green" }}>已连接 {DEFAULT_HOST}:{port}</span>
+    );
+
+  const owStatus =
+    owPort === null ? (
+      <span style={{ color: "#888" }}>检测中…</span>
+    ) : owPort === undefined ? (
+      <span style={{ color: "#b45309" }}>
+        未发现 OpenWhispr(确认桌面应用已启动)
+        <button onClick={refreshOwStatus} style={{ marginLeft: 8 }}>重试</button>
       </span>
+    ) : (
+      <span style={{ color: "green" }}>已连接 {OW_HOST}:{owPort}</span>
     );
 
   return (
@@ -50,17 +84,43 @@ function Options() {
       <section>
         <h2>DesktopHub 接入(推送)</h2>
         <p style={{ color: "#666", fontSize: 13 }}>
-          插件只负责采集;开启后把记录与正文单向推送到<strong>本机</strong> DesktopHub(数据不离开本机),
-          由它完成总结/聚合。端口自动发现,无需配置。默认开启。
+          开启后把记录与正文单向推送到<strong>本机</strong> DesktopHub，由它完成总结/聚合。端口自动发现，默认开启。
         </p>
         <label style={{ display: "block", marginBottom: 8, fontSize: 15 }}>
           <input type="checkbox" checked={enabled} onChange={(e) => void onToggle(e.target.checked)} />{" "}
           启用推送到 DesktopHub
         </label>
-        <p style={{ fontSize: 13, margin: "4px 0 0" }}>连接状态:{status}</p>
+        <p style={{ fontSize: 13, margin: "4px 0 0" }}>连接状态：{status}</p>
       </section>
 
-      <section>
+      <section style={{ marginTop: 24 }}>
+        <h2>OpenWhispr 接入(Chat Overlay 上下文)</h2>
+        <p style={{ color: "#666", fontSize: 13 }}>
+          开启后每次采集到页面正文时，同步推送到本机 OpenWhispr Chat Overlay，
+          按快捷键唤起时自动注入当前页上下文。端口自动发现(8200-8219)，默认开启。
+        </p>
+        <label style={{ display: "block", marginBottom: 8, fontSize: 15 }}>
+          <input type="checkbox" checked={owEnabled} onChange={(e) => void onOwToggle(e.target.checked)} />{" "}
+          启用推送到 OpenWhispr
+        </label>
+        <p style={{ fontSize: 13, margin: "4px 0 8px" }}>连接状态：{owStatus}</p>
+        <label style={{ display: "block", fontSize: 13, color: "#555" }}>
+          CLI Bridge Token（可选，留空则不带认证）
+          <input
+            type="password"
+            value={owToken}
+            onChange={(e) => setOwTokenState(e.target.value)}
+            onBlur={() => void onOwTokenBlur()}
+            placeholder="owk_live_…"
+            style={{ display: "block", marginTop: 4, width: "100%", padding: "4px 8px", fontSize: 13, boxSizing: "border-box" }}
+          />
+        </label>
+        <p style={{ fontSize: 12, color: "#999", marginTop: 4 }}>
+          Token 在 OpenWhispr → 设置 → 系统 → CLI Bridge Token 里获取（本地使用通常不需要）。
+        </p>
+      </section>
+
+      <section style={{ marginTop: 24 }}>
         <h2>敏感域名黑名单</h2>
         <p style={{ color: "#666", fontSize: 13 }}>
           命中以下域名不写入历史 context(也不会推送);仪表盘仍可显示。
@@ -72,9 +132,9 @@ function Options() {
         </ul>
       </section>
 
-      <section>
+      <section style={{ marginTop: 24 }}>
         <h2>存储后端</h2>
-        <p style={{ color: "#666", fontSize: 13 }}>默认本地 IndexedDB;推送为额外的单向上报,不替代本地。</p>
+        <p style={{ color: "#666", fontSize: 13 }}>默认本地 IndexedDB；推送为额外的单向上报，不替代本地。</p>
       </section>
     </main>
   );
