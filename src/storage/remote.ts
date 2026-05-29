@@ -11,10 +11,12 @@ export interface RemoteConfig {
   apiKey?: string;
 }
 
-/** 推送给 DesktopHub 的载荷:一条 ContextRecord + 其正文 Markdown。 */
+/** 推送给 DesktopHub 的载荷:一条 ContextRecord + 正文 + 设备身份。 */
 export interface PushPayload {
   record: ContextRecord;
   markdown?: string;
+  deviceId?: string;
+  deviceLabel?: string;
 }
 
 /**
@@ -72,13 +74,18 @@ export class RemoteStorageAdapter {
     return this.livePort;
   }
 
-  /** 推送一次访问(记录 + 正文)。未发现 DesktopHub 或推送失败则抛出。 */
-  async pushVisit(record: ContextRecord, markdown?: string): Promise<void> {
+  /** 推送一次访问(记录 + 正文 + 设备身份)。未发现 DesktopHub 或推送失败则抛出。 */
+  async pushVisit(
+    record: ContextRecord,
+    markdown?: string,
+    deviceId?: string,
+    deviceLabel?: string,
+  ): Promise<void> {
     const port = await this.resolvePort();
     if (port === undefined) {
       throw new Error("未发现本机 DesktopHub(候选端口 /health 均无响应)");
     }
-    const payload: PushPayload = { record, markdown };
+    const payload: PushPayload = { record, markdown, deviceId, deviceLabel };
     try {
       const res = await fetch(`http://${this.host}:${port}/records`, {
         method: "POST",

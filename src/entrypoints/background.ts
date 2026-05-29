@@ -4,6 +4,7 @@ import { LocalStorageAdapter } from "../storage/local";
 import { RemoteStorageAdapter } from "../storage/remote";
 import { OpenWhisprAdapter } from "../storage/openwhispr";
 import { getRemoteSettings, getOwSettings } from "../storage/remoteConfig";
+import { getOrCreateDeviceId, getDeviceLabel } from "../storage/deviceIdentity";
 import type { ContextRecord } from "../models/context";
 
 /**
@@ -13,8 +14,12 @@ import type { ContextRecord } from "../models/context";
  *   1. DesktopHub（7777-7779）：AI 总结/聚合
  *   2. OpenWhispr（8200-8219）：全局 Chat Overlay 上下文注入
  */
-export default defineBackground(() => {
+export default defineBackground(async () => {
   const storage = new LocalStorageAdapter();
+
+  // ── Device Identity ────────────────────────────────────────────────────────
+  const deviceId = await getOrCreateDeviceId();
+  const deviceLabel = await getDeviceLabel();
 
   // ── DesktopHub 推送 ────────────────────────────────────────────────────────
   const remoteAdapter = new RemoteStorageAdapter();
@@ -27,7 +32,7 @@ export default defineBackground(() => {
   const pushRemote = (record: ContextRecord, markdown?: string): void => {
     if (!remoteEnabled) return;
     remoteAdapter
-      .pushVisit(record, markdown)
+      .pushVisit(record, markdown, deviceId, deviceLabel)
       .catch((e) => console.warn("[ViewMind] DesktopHub 推送失败(本地已存)", e));
   };
 
