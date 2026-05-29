@@ -4,6 +4,7 @@ import { DEFAULT_BLOCKLIST } from "../../collector/filter";
 import { getRemoteSettings, setRemoteEnabled, getOwSettings, setOwEnabled, setOwToken } from "../../storage/remoteConfig";
 import { DEFAULT_HOST, probeDesktopHub } from "../../storage/remote";
 import { probeOpenWhispr, OW_HOST } from "../../storage/openwhispr";
+import { getOrCreateDeviceId, getDeviceLabel, setDeviceLabel } from "../../storage/deviceIdentity";
 
 /**
  * 设置页：DesktopHub 接入(推送)/ 黑名单 / 存储后端。
@@ -17,6 +18,9 @@ function Options() {
   const [owPort, setOwPort] = useState<number | null | undefined>(null);
   const [owToken, setOwTokenState] = useState("");
 
+  const [deviceId, setDeviceIdState] = useState("");
+  const [deviceLabel, setDeviceLabelState] = useState("");
+
   useEffect(() => {
     getRemoteSettings().then((s) => setEnabled(s.enabled));
     refreshStatus();
@@ -25,6 +29,8 @@ function Options() {
       setOwTokenState(s.token ?? "");
     });
     refreshOwStatus();
+    getOrCreateDeviceId().then(setDeviceIdState);
+    getDeviceLabel().then(setDeviceLabelState);
   }, []);
 
   const refreshStatus = (): void => {
@@ -118,6 +124,27 @@ function Options() {
         <p style={{ fontSize: 12, color: "#999", marginTop: 4 }}>
           Token 在 OpenWhispr → 设置 → 系统 → CLI Bridge Token 里获取（本地使用通常不需要）。
         </p>
+      </section>
+
+      <section style={{ marginTop: 24 }}>
+        <h2>设备身份</h2>
+        <p style={{ color: "#666", fontSize: 13 }}>
+          用于 DesktopHub 区分多设备来源。deviceId 首次生成后不变；设备名称可自定义（如"工作 MacBook"）。
+        </p>
+        <p style={{ fontSize: 13, margin: "4px 0 8px" }}>
+          设备 ID：<code style={{ userSelect: "all", fontSize: 12, color: "#555" }}>{deviceId || "生成中…"}</code>
+        </p>
+        <label style={{ display: "block", fontSize: 13, color: "#555" }}>
+          设备名称
+          <input
+            type="text"
+            value={deviceLabel}
+            onChange={(e) => setDeviceLabelState(e.target.value)}
+            onBlur={() => void setDeviceLabel(deviceLabel)}
+            placeholder="MacBook-Chrome"
+            style={{ display: "block", marginTop: 4, width: "100%", padding: "4px 8px", fontSize: 13, boxSizing: "border-box" }}
+          />
+        </label>
       </section>
 
       <section style={{ marginTop: 24 }}>
