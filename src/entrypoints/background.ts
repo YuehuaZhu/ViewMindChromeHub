@@ -1,5 +1,6 @@
 import { defineBackground } from "wxt/utils/define-background";
-import { buildRecord, mergeVisit, startOfLocalDay, type VisitSignal } from "../collector/history";
+import { buildRecord, type VisitSignal } from "../collector/history";
+import { isNoise } from "../collector/filter";
 import { LocalStorageAdapter } from "../storage/local";
 import { RemoteStorageAdapter } from "../storage/remote";
 import { getRemoteSettings } from "../storage/remoteConfig";
@@ -18,6 +19,34 @@ const OUTBOX_ALARM = "viewmind-outbox-flush";
  * 下游消费方（OpenWhispr 等）通过 DesktopHub CLI 按需拉取，不在此直推。
  */
 export default defineBackground(async () => {
+  // 首次安装：写入默认配置 + 批量注入所有当前已打开的 tab
+  chrome.runtime.onInstalled.addListener((details) => {
+    if (details.reason === "install") {
+      void chrome.storage.local.set({ remoteEnabled: true });
+      // 对安装前已打开的 tab 补注一次 content script，捕获现有上下文快照
+      void chrome.tabs.query({}).then((tabs) => {
+        for (const tab of tabs) {
+          if (tab.id && tab.url && !isNoise(tab.url)) {
+            void chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              files: ["content-scripts/content.js"],
+            }).catch(() => {});
+          }
+        }
+      });
+    }
+  });
+
+  // SPA 导航检测：URL 变化但页面不重载（YouTube/GitHub 等单页应用）
+  // changeInfo.url 有值 = URL 发生了变化（pushState/replaceState），主动补注 content script
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (!changeInfo.url || isNoise(changeInfo.url)) return;
+    void chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["content-scripts/content.js"],
+    }).catch(() => {});
+  });
+
   const storage = new LocalStorageAdapter();
 
   // ── Device Identity ────────────────────────────────────────────────────────
@@ -68,13 +97,15 @@ export default defineBackground(async () => {
     if (alarm.name === OUTBOX_ALARM) void flushPending();
   });
 
-  const save = async (signal: VisitSignal): Promise<{ saved: boolean; reason?: string }> => {
+  const save = async (
+    signal: VisitSignal,
+  ): Promise<{ saved: boolean; reason?: string; recordId?: string }> => {
     try {
       const fresh = buildRecord(signal);
       if (!fresh) return { saved: false, reason: "filtered" };
 
-      const target = await storage.findMergeTarget(fresh.ownerId, fresh.url, startOfLocalDay());
-      const record = target ? mergeVisit(target, fresh) : fresh;
+      // 不合并同日同 URL 访问——每次访问独立一条记录，保留最细粒度的正文和上下文
+      const record = fresh;
       if (signal.rawContent) record.rawContentRef = record.id;
 
       // 落库前标 pending，推送成功后改为 synced；失败留 pending 等 alarm 补传。
@@ -97,7 +128,7 @@ export default defineBackground(async () => {
         }
       }
       pushRemote(record, signal.rawContent);   // → DesktopHub（成功后 markSynced）
-      return { saved: true };
+      return { saved: true, recordId: record.id };
     } catch (e) {
       console.error("[ViewMind] 落库出错", signal?.url, e);
       return { saved: false, reason: "error" };
@@ -109,11 +140,18 @@ export default defineBackground(async () => {
       save(msg.signal as VisitSignal).then(sendResponse);
       return true; // 异步响应。
     }
+    if (msg?.type === "dwellFinal") {
+      // content script 在 visibilitychange→hidden / pagehide 时上报最终 dwell。
+      // 用 best-effort 推到 ingest，失败静默吞掉——dwell 是 nice-to-have，不阻断主流程。
+      const { recordId, dwellMs } = msg as { recordId?: string; dwellMs?: number };
+      if (remoteEnabled && recordId && typeof dwellMs === "number" && dwellMs > 0) {
+        void remoteAdapter.pushDwell(recordId, dwellMs);
+      }
+      return false; // 不需要 sendResponse
+    }
     return false;
   });
 
-  // 点扩展图标(无 popup)→ 直接打开主控台。
-  chrome.action.onClicked.addListener(() => {
-    chrome.tabs.create({ url: chrome.runtime.getURL("hub.html") });
-  });
+  // 点扩展图标 → 弹出 hub.html popup（wxt.config.ts 已设置 default_popup）
+  // 无需 onClicked 监听器：有 popup 时 Chrome 不触发该事件。
 });

@@ -10,6 +10,13 @@ export interface VisitSignal {
   interactions: Interaction[];
   referrer?: string;
   fromUrl?: string;
+  /** 页面最大滚动深度（0-100%）。*/
+  scrollDepthPct?: number;
+  /** 本次访问期间 tab 被重新激活次数。*/
+  tabSwitchCount?: number;
+  /** 累计可见停留时长（毫秒）；首次上报时约等于 SETTLE_MS。
+   *  visibilitychange→hidden 时由 content 通过 dwellFinal 消息发送更精确的最终值。 */
+  dwellMs?: number;
 }
 
 /** 把 URL 收成可读形式：hostname + 路径（去掉 query/hash），解析失败原样返回。 */
@@ -30,6 +37,23 @@ export function cleanTitle(title: string, url: string): string {
 }
 
 /**
+ * 从正文 Markdown 提取更好的标题，作为泛域名标题的后备。
+ * 泛标题特征：带通知数前缀 "(N) "，或仅剩站名（长度 ≤ 12）。
+ */
+function inferTitle(rawTitle: string, rawContent?: string): string {
+  const isGeneric = /^\(\d+\)\s/.test(rawTitle) || rawTitle.length <= 12;
+  if (!isGeneric || !rawContent) return rawTitle;
+
+  for (const line of rawContent.split("\n")) {
+    const t = line.replace(/^#+\s*/, "").trim(); // 去掉 Markdown heading 标记
+    if (t.length >= 4 && t.length <= 150 && !/^https?:\/\//.test(t) && !/^\d+$/.test(t)) {
+      return t;
+    }
+  }
+  return rawTitle;
+}
+
+/**
  * 历史采集编排：过滤 → 组装 ContextRecord（摘要/标签留空，待 processor 惰性填充）。
  * 命中黑名单/噪音/瞬时中转页返回 null（不写入历史）。
  */
@@ -46,12 +70,15 @@ export function buildRecord(
     ownerId,
     timestamp: Date.now(),
     url: signal.url,
-    title: cleanTitle(signal.title, signal.url),
+    title: inferTitle(cleanTitle(signal.title, signal.url), signal.rawContent),
     rawContentRef: undefined, // 由 background 存入正文后回填。
     interactions: signal.interactions,
     visitCount: 1,
     tags: [],
     source: { referrer: signal.referrer, fromUrl: signal.fromUrl },
+    scrollDepthPct: signal.scrollDepthPct,
+    tabSwitchCount: signal.tabSwitchCount,
+    dwellMs: signal.dwellMs,
   };
 }
 
