@@ -26,6 +26,10 @@ export interface ContextRecord {
   dwellMs?: number;
   /** 同 URL 时间窗内被合并的访问次数，默认 1。 */
   visitCount?: number;
+  /** 页面最大滚动深度（0-100%）。*/
+  scrollDepthPct?: number;
+  /** 本次访问期间 tab 被重新激活的次数（visibilitychange hidden→visible）。*/
+  tabSwitchCount?: number;
   /** LLM 生成的语义标签。 */
   tags: string[];
   source: {
