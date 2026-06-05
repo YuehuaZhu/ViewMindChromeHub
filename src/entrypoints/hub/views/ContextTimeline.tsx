@@ -62,12 +62,17 @@ export function ContextTimeline() {
     setSelected(new Set());
   };
 
-  if (records.length === 0) {
-    return <p>暂无采集记录。浏览几个网页后回来看看。</p>;
-  }
-
   return (
     <>
+      {records.length === 0 && (
+        <div className="timeline-empty">
+          <div className="timeline-empty__icon">🌐</div>
+          <div className="timeline-empty__title">暂无采集记录</div>
+          <div className="timeline-empty__desc">
+            浏览任意网页并停留 2 秒后，记录会自动出现在这里。
+          </div>
+        </div>
+      )}
       <ul className="timeline">
         {records.map((r) => (
           <li

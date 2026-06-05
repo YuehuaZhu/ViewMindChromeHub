@@ -96,10 +96,12 @@ git push origin HEAD                 # 用 +pr 创建 PR,+merge 合并
 
 > **入口必须在 `src/entrypoints/`**:PLAN 里画的 `src/background/`、`src/hub/` 是逻辑分层示意;WXT 实际要求所有入口集中在 `src/entrypoints/`,引擎层(collector/processor/storage/models)才是普通模块。
 
-> **DesktopHub 推送契约**:**默认开启**(options 可关);端口**自动发现**——`probeDesktopHub` 按序探测 `GET http://127.0.0.1:{7777,7778,7779}/health`,缓存第一个响应的端口(逻辑在 [`storage/remote.ts`](src/storage/remote.ts);background 用长生命周期单例缓存,避免每次采集重探,推失败清缓存重探)。每条采集落库后 `POST http://127.0.0.1:{port}/records`,body = `{ "records": [{ "record": <ContextRecord>, "markdown": <正文,可选> }] }`;有 `apiKey` 则带 `Authorization: Bearer`。单向推送、best-effort(失败只 warn 不影响本地)。黑名单/噪音页不入库也不推送。DesktopHub 的 serve 按同序候选端口绑定,双方无感对接。
+> **ingest-server 推送契约**:**默认开启**(options 可关);端口**自动发现**——`probeDesktopHub`(命名沿用历史,实际探测 ViewMindPipeline ingest-server)按序探测 `GET http://127.0.0.1:{8787,8788,8789}/health`,缓存第一个响应的端口(逻辑在 [`storage/remote.ts`](src/storage/remote.ts);background 用长生命周期单例缓存,避免每次采集重探,推失败清缓存重探)。每条采集落库后 `POST http://127.0.0.1:{port}/ingest/browser`,body = `{ "records": [{ "record": <ContextRecord>, "markdown": <正文,可选> }] }`;有 `apiKey` 则带 `Authorization: Bearer`。单向推送、best-effort(失败只 warn 不影响本地)。黑名单/噪音页不入库也不推送(ingest-server 端 `isSystemUrl` 还会兜底拦 Chrome `warmup.html` / `chrome://*` / `about:*`)。
 
 > **主控台入口 / 点图标没反应**:主控台是普通扩展页 `hub.html`(入口目录 `entrypoints/hub`),**有意不接管新标签页**(早期接管过,老大反馈烦,已废)。manifest 不设 `default_popup`,点扩展图标由 background 的 `chrome.action.onClicked` 打开 `hub.html`。改回 popup 或加 onClicked 时注意二者互斥:有 `default_popup` 则 `onClicked` 不触发。
 
-> **采集时机 / 快速浏览的页没进时间线**:记录在页面**打开满 `SETTLE_MS`(~2s,在 [`content.ts`](src/entrypoints/content.ts))时**上报一次——不依赖"离开页面"(那在同标签跳转/关页时常丢)。活不够 2s 的一闪而过页定时器不触发,天然过滤。**不采集停留时长**(早期去掉,`dwellMs` 字段保留可选,未来用后台 visibility 精确计时再启用)。
+> **采集时机 / 快速浏览的页没进时间线**:记录在页面**打开满 `SETTLE_MS`(~2s,在 [`content.ts`](src/entrypoints/content.ts))时**上报一次——不依赖"离开页面"(那在同标签跳转/关页时常丢)。活不够 2s 的一闪而过页定时器不触发,天然过滤。
+
+> **`dwellMs` 精确采集 (2026-06-05 上线,#43)**:content.ts 持续累加可见时长(`document.visibilityState==='visible'` 时计、hidden 不计);SETTLE_MS=2s 首次 visit 上报含初始 dwellMs(≈2000ms);在 `visibilitychange→hidden` / `pagehide` 时,通过 `chrome.runtime.sendMessage({type:'dwellFinal', recordId, dwellMs})` 二次推,background 调 `remoteAdapter.pushDwell` → `POST /ingest/browser/dwell`,服务端 **MAX-merge** 单调递增(不被更小值覆盖)。首次 visit 的回调里缓存 background 返回的 `recordId`,dwellFinal 没有 recordId 不发。pushDwell 静默失败(端口不通或旧 ingest 返 404)——dwell 是 nice-to-have,不阻断主流程。
 
 > **同一页一天一条 / 显示「浏览 N 次」**:去重边界 = **本地自然日**(`startOfLocalDay`,在 `history.ts`)。当天内重访同 URL 合并进同一条(合并交互、置顶时间、`visitCount++`),**次日重新从 1 计数**(新增一条)。逻辑在 `history.ts` `mergeVisit` + `LocalStorageAdapter.findMergeTarget(ownerId, url, since)`(`since` = 当天零点)。

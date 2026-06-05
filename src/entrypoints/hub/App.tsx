@@ -10,7 +10,7 @@ export function App() {
   const [view, setView] = useState<View>("tabs");
 
   return (
-    <main style={{ fontFamily: "system-ui", maxWidth: 960, margin: "0 auto", padding: 24 }}>
+    <main style={{ fontFamily: "system-ui", minWidth: 720, maxWidth: 960, margin: "0 auto", padding: 24 }}>
       <h1>ViewMind 浏览中枢</h1>
       <div
         style={{
