@@ -133,6 +133,7 @@ ViewMindChromeHub/
 
 - **M0(本计划 MVP)✅ 端到端跑通(2026-05-27)**:双视图主控台 + Tab 仪表盘(核心子集)+ 历史采集 + 正文抽取 + 智能过滤 + 可插拔存储(local/file)+ 导出 + **HTTP 推送 ingest-server(原 DesktopHub 命名)**。已真机验收。~~插件内总结~~ 已移交下游。**推送已升级为默认开启 + 多端口自动发现(127.0.0.1:8787/8788/8789)+ 极简无感设置页;接收端 ingest-server 已上线并真机联调通过(无配置即推送落库,含正文)**。
   - 2026-06-05 #43 ship 停留时长精确采集:visibility 累加 + `visibilitychange→hidden` 二次推 dwellFinal(`POST /ingest/browser/dwell`),服务端 MAX-merge 单调递增。实测覆盖率 100%,均值 ~11s。
+  - 2026-06-10 #47 ship 正文质量双阶段过滤:`gateContent` 抽取前把关（非文章页/验证墙/loading 骨架），`sanitizeMarkdown` 链式清洗（剥图/折叠重复行/50k 截断）；规则数组可逐条扩展，内联 UI/表单页正文空白交 Jina Reader 兜底；全面去 DesktopHub 命名对齐 ViewMindPipeline。
   - 遗留待打磨:SPA 路由采集(部分单页应用的 pushState 跳转可能漏采)。
 - **M1**:浏览器内语义检索(RAG,借 personal-ai-memory)+ 当前 tab 快照入 context → 第二大脑雏形。
 - **M2(Issue #29 ✅ 2026-05-29 → 架构纠偏 #37 ✅ 2026-05-29)**:OpenWhispr 全局 Chat 上下文桥。初版实现"双推"（DesktopHub + OpenWhispr），但违反单管道原则——ChromeHub 不应感知下游消费方。**架构纠偏**：移除 ChromeHub→OpenWhispr 直推路径，恢复单一上游（ChromeHub→DesktopHub）。OpenWhispr 等消费方通过 `viewmind-hub recent --type browser` CLI 按需拉取，与 ChromeHub 解耦。

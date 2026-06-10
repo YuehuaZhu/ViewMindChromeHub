@@ -62,10 +62,10 @@ src/
     hub/            双视图主控台 hub.html(App + HubActions[导出/设置/清除] + views/TabDashboard + ContextTimeline)
     options/        设置:Pipeline 接入(单开关,默认开,勾选即存,端口自动发现)/ 黑名单 / 存储后端
   collector/        filter(黑名单+噪音) · tabState(分组/去重) · history(组装 Record) · timelineSelection(时间线区间选择+URL匹配标签)
-  processor/        preview(正文预览截断)   # 总结已移交 DesktopHub,插件不含 LLM
+  processor/        preview(正文预览截断) · sanitize(双阶段正文过滤:gateContent 抽取前把关 + sanitizeMarkdown 清洗，规则数组可逐条扩展)
   storage/          adapter(接口) · local(IndexedDB/Dexie:records 表 + 独立 contents 正文表) · file(导出) · remote(HTTP 推送 pushVisit) · remoteConfig(读推送配置)
   models/           context(ContextRecord + RawContent) · tab(LiveTab)
-tests/              Vitest:纯函数逻辑(filter / tabState / history / timelineSelection / preview)
+tests/              Vitest:纯函数逻辑(filter / tabState / history / timelineSelection / preview / sanitize)
 wxt.config.ts       srcDir=src,React 模块,manifest 权限 + action(无 popup,点图标开 hub)
 ```
 
