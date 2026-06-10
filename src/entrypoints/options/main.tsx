@@ -2,11 +2,11 @@ import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { DEFAULT_BLOCKLIST } from "../../collector/filter";
 import { getRemoteSettings, setRemoteEnabled } from "../../storage/remoteConfig";
-import { DEFAULT_HOST, probeDesktopHub } from "../../storage/remote";
+import { DEFAULT_HOST, probeIngestServer } from "../../storage/remote";
 import { getOrCreateDeviceId, getDeviceLabel, setDeviceLabel } from "../../storage/deviceIdentity";
 
 /**
- * 设置页：DesktopHub 接入(推送)/ 黑名单 / 存储后端。
+ * 设置页：Pipeline 接入(推送)/ 黑名单 / 存储后端。
  * 推送默认开启、端口自动发现、勾选即存(无保存按钮),整体无感。配置仅存本机。
  */
 function Options() {
@@ -25,7 +25,7 @@ function Options() {
 
   const refreshStatus = (): void => {
     setPort(null);
-    probeDesktopHub().then(setPort);
+    probeIngestServer().then(setPort);
   };
 
   const onToggle = async (next: boolean): Promise<void> => {
@@ -39,7 +39,7 @@ function Options() {
       <span style={{ color: "#888" }}>检测中…</span>
     ) : port === undefined ? (
       <span style={{ color: "#b45309" }}>
-        未发现 DesktopHub(确认桌面端已启动)
+        未发现 ingest-server（确认 ViewMindPipeline 已启动）
         <button onClick={refreshStatus} style={{ marginLeft: 8 }}>重试</button>
       </span>
     ) : (
@@ -51,13 +51,13 @@ function Options() {
       <h1>ViewMind 设置</h1>
 
       <section>
-        <h2>DesktopHub 接入(推送)</h2>
+        <h2>Pipeline 接入(推送)</h2>
         <p style={{ color: "#666", fontSize: 13 }}>
-          开启后把记录与正文单向推送到<strong>本机</strong> DesktopHub，由它完成总结/聚合。端口自动发现，默认开启。
+          开启后把记录与正文单向推送到<strong>本机</strong> ViewMind Pipeline ingest-server，实时写入 pipeline.db。端口自动发现，默认开启。
         </p>
         <label style={{ display: "block", marginBottom: 8, fontSize: 15 }}>
           <input type="checkbox" checked={enabled} onChange={(e) => void onToggle(e.target.checked)} />{" "}
-          启用推送到 DesktopHub
+          启用推送到 ViewMind Pipeline
         </label>
         <p style={{ fontSize: 13, margin: "4px 0 0" }}>连接状态：{status}</p>
       </section>
@@ -65,7 +65,7 @@ function Options() {
       <section style={{ marginTop: 24 }}>
         <h2>设备身份</h2>
         <p style={{ color: "#666", fontSize: 13 }}>
-          用于 DesktopHub 区分多设备来源。deviceId 首次生成后不变；设备名称可自定义（如"工作 MacBook"）。
+          用于 Pipeline 记录多设备来源。deviceId 首次生成后不变；设备名称可自定义（如"工作 MacBook"）。
         </p>
         <p style={{ fontSize: 13, margin: "4px 0 8px" }}>
           设备 ID：<code style={{ userSelect: "all", fontSize: 12, color: "#555" }}>{deviceId || "生成中…"}</code>

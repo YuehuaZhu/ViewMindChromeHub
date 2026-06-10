@@ -6,7 +6,7 @@ export interface Interaction {
   type: InteractionType;
   value: string;
   ts: number;
-  /** SHA-256 hex 指纹，仅 copy 事件填充，供 DesktopHub 跨源匹配复制→粘贴关联。 */
+  /** SHA-256 hex 指纹，仅 copy 事件填充，供 Pipeline 跨源匹配复制→粘贴关联。 */
   fingerprint?: string;
 }
 
@@ -37,7 +37,7 @@ export interface ContextRecord {
     fromUrl?: string;
   };
   /**
-   * Outbox 同步状态：pending = 待推送到 DesktopHub；synced = 已成功推送。
+   * Outbox 同步状态：pending = 待推送到 Pipeline ingest-server；synced = 已成功推送。
    * undefined 表示旧数据（向后兼容，不重推）。
    */
   syncState?: "pending" | "synced";

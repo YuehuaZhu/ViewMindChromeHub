@@ -1,11 +1,11 @@
-/** DesktopHub 接入配置在 chrome.storage.local 的键。 */
+/** Pipeline 接入配置在 chrome.storage.local 的键。 */
 export const REMOTE_KEYS = {
   enabled: "remoteEnabled",
   apiKey: "remoteApiKey",
 } as const;
 
 export interface RemoteSettings {
-  /** 是否推送到本机 DesktopHub。默认开启(无感);用户可在设置页关闭。 */
+  /** 是否推送到本机 ViewMindPipeline ingest-server。默认开启(无感);用户可在设置页关闭。 */
   enabled: boolean;
   apiKey?: string;
 }

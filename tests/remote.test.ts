@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { RemoteStorageAdapter, probeDesktopHub, DEFAULT_PORTS } from "../src/storage/remote";
+import { RemoteStorageAdapter, probeIngestServer, DEFAULT_PORTS } from "../src/storage/remote";
 import type { ContextRecord } from "../src/models/context";
 
 const record: ContextRecord = {
@@ -29,18 +29,18 @@ function fakeFetch(livePort: number, calls: { url: string; method: string; body?
   });
 }
 
-describe("probeDesktopHub", () => {
+describe("probeIngestServer", () => {
   it("returns the first candidate whose /health responds", async () => {
     const calls: { url: string; method: string }[] = [];
-    globalThis.fetch = fakeFetch(7778, calls) as unknown as typeof fetch;
-    expect(await probeDesktopHub("127.0.0.1", [7777, 7778, 7779])).toBe(7778);
+    globalThis.fetch = fakeFetch(DEFAULT_PORTS[1]!, calls) as unknown as typeof fetch;
+    expect(await probeIngestServer("127.0.0.1", DEFAULT_PORTS)).toBe(DEFAULT_PORTS[1]);
   });
 
   it("returns undefined when no candidate responds", async () => {
     globalThis.fetch = vi.fn(async () => {
       throw new Error("down");
     }) as unknown as typeof fetch;
-    expect(await probeDesktopHub("127.0.0.1", [7777, 7778])).toBeUndefined();
+    expect(await probeIngestServer("127.0.0.1", DEFAULT_PORTS)).toBeUndefined();
   });
 });
 
