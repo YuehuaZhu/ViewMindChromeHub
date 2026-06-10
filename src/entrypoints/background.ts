@@ -15,8 +15,7 @@ const OUTBOX_ALARM = "viewmind-outbox-flush";
 /**
  * 后台 service worker：接收 content script 在页面存活满 ~2s 时上报的 VisitSignal → 落库。
  * 同 URL 当天内合并(次日重新计数);有正文则存入独立内容表并回填 rawContentRef。
- * 落库后单向推送到 DesktopHub（7777-7779，best-effort，失败进 Outbox 补传）。
- * 下游消费方（OpenWhispr 等）通过 DesktopHub CLI 按需拉取，不在此直推。
+ * 落库后单向推送到 ViewMind Pipeline ingest-server（best-effort，失败进 Outbox 补传）。
  */
 export default defineBackground(async () => {
   // 首次安装：写入默认配置 + 批量注入所有当前已打开的 tab
@@ -53,7 +52,7 @@ export default defineBackground(async () => {
   const deviceId = await getOrCreateDeviceId();
   const deviceLabel = await getDeviceLabel();
 
-  // ── DesktopHub 推送 ────────────────────────────────────────────────────────
+  // ── Pipeline 推送 ─────────────────────────────────────────────────────────
   const remoteAdapter = new RemoteStorageAdapter();
   let remoteEnabled = true;
   getRemoteSettings().then((s) => (remoteEnabled = s.enabled));
@@ -64,7 +63,7 @@ export default defineBackground(async () => {
   });
 
   /**
-   * 尝试推送一条记录到 DesktopHub。
+   * 尝试推送一条记录到 ViewMind Pipeline ingest-server。
    * 成功 → markSynced；失败 → 保持 pending，等下次 alarm 重试。
    */
   const pushRemote = (record: ContextRecord, markdown?: string): void => {
@@ -72,7 +71,7 @@ export default defineBackground(async () => {
     remoteAdapter
       .pushVisit(record, markdown, deviceId, deviceLabel)
       .then(() => storage.markSynced(record.id))
-      .catch((e) => console.warn("[ViewMind] DesktopHub 推送失败，将在下次 flush 重试", e));
+      .catch((e) => console.warn("[ViewMind] Pipeline 推送失败，将在下次 flush 重试", e));
   };
 
   // ── Outbox flush（chrome.alarms 每 90s 低频补传）─────────────────────────
@@ -127,7 +126,7 @@ export default defineBackground(async () => {
           console.warn("[ViewMind] 正文存储失败(记录已存)", e);
         }
       }
-      pushRemote(record, signal.rawContent);   // → DesktopHub（成功后 markSynced）
+      pushRemote(record, signal.rawContent);   // → Pipeline ingest-server（成功后 markSynced）
       return { saved: true, recordId: record.id };
     } catch (e) {
       console.error("[ViewMind] 落库出错", signal?.url, e);

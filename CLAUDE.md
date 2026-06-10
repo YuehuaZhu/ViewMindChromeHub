@@ -1,20 +1,17 @@
 # ViewMindChromeHub — 浏览中枢:Tab 管理 + 浏览 Context 采集(数字分身底座)
 
-Chromium(Chrome/Edge)MV3 扩展。双视图主控台(扩展页 `hub.html`,点扩展图标直接打开;**不接管新标签页**):**Tab 仪表盘**(此刻开着什么)+ **Context 时间线**(浏览过什么)。后台智能过滤采集网页正文与关键交互,存到本地;可选启用后**单向推送到本地 DesktopHub**。**本地优先**,最终喂养数字分身。
+Chromium(Chrome/Edge)MV3 扩展。双视图主控台(扩展页 `hub.html`,点扩展图标直接打开;**不接管新标签页**):**Tab 仪表盘**(此刻开着什么)+ **Context 时间线**(浏览过什么)。后台智能过滤采集网页正文与关键交互,存到本地;可选启用后**单向推送到本机 ViewMindPipeline ingest-server**。**本地优先**,最终喂养数字分身。
 
-> **职责边界(老大 2026-05-27)**:ChromeHub 只做**采集 + 暴露**,**不含 AI 总结**。总结/聚合在 DesktopHub 完成(ChromeHub 经 HTTP 推送把 context 喂给它)。`contentSummary`/`tags` 字段保留在共享 schema 但插件不再填。
+> **职责边界(老大 2026-05-27)**:ChromeHub 只做**采集 + 暴露**,**不含 AI 总结**。总结/聚合在 ViewMindPipeline pipeline/extraction 层完成(ChromeHub 经 HTTP 推送把 context 喂给 ingest-server 写入 pipeline.db)。`contentSummary`/`tags` 字段保留在共享 schema 但插件不再填。
 
 完整产品背景、决策、里程碑见 [PLAN.md](PLAN.md)。
 
-## 本项目在 ViewMind 总体中的定位（引导桥）
+## 本项目在 ViewMind 总体中的定位
 
-本项目是 ViewMind 的**附属项目 + 第一个落地(Roadmap R1)**,充当核心收口项目 DesktopHub 的**浏览器 context 采集源**(采集到的 `ContextRecord` 经 remote adapter 上报聚合)。
+本项目是 ViewMind 的**浏览器采集前端**,直接对接 ViewMindPipeline ingest-server（`127.0.0.1:8787`）作为浏览 context 的上报入口。采集到的 `ContextRecord` 经 remote adapter 写入 `pipeline.db` L0_browser_events 表，由 ViewMindPipeline 的处理层继续加工。
 
-**每个 session 开工前必读(按序):**
-1. **全局总纲**:`/Users/zhuyuehua/MyCode/ViewMindDesktopHub/MASTER_PLAN.md` —— 三步定序(采集→交互→自动化)、项目分工、`SourceAdapter` 通用接口、`ownerId` 多租户预留、落地顺序 R0–R4。
-2. **本项目计划**:[PLAN.md](PLAN.md) —— M0 MVP 范围与验证方式。
-
-任何改动须符合总纲约束:三步定序、`SourceAdapter`/`StorageAdapter` 接口范式、`ContextRecord` 带 `ownerId`、本地优先 + 隐私红线。与总纲冲突时**先对齐总纲再动手**。
+**每个 session 开工前必读:**
+[PLAN.md](PLAN.md) —— 功能范围、验证方式与里程碑。
 
 ## 开发规范
 
@@ -47,7 +44,7 @@ pnpm test                 # Vitest 单测
                         ▼ 共享 tab/导航监听 + 存储层
 ┌──────── 后台引擎 (方案 C 四层) ───────────────────────────┐
 │ Collector  实时 tab 状态(→视图A) / 历史采集(→视图B)+ 智能过滤 │
-│ Processor  preview(正文预览截断);总结/聚合已移交 DesktopHub │
+│ Processor  preview(正文预览截断);总结/聚合在 ViewMindPipeline pipeline/extraction 层 │
 │ Storage    local(IndexedDB,默认) / file(导出) / remote(推送) │
 │ Consumer   未来三里程碑(本计划不实现)                        │
 └────────────────────────────────────────────────────────────┘
@@ -63,7 +60,7 @@ src/
     background.ts   service worker:收 VisitSignal → 过滤 → 写本地存储
     content.ts      content script:加载后等 SETTLE_MS(~2s)仍存活则抽正文(Readability+Turndown)+ 上报 VisitSignal(页面活着时发,可靠)
     hub/            双视图主控台 hub.html(App + HubActions[导出/设置/清除] + views/TabDashboard + ContextTimeline)
-    options/        设置:DesktopHub 接入(单开关,默认开,勾选即存,端口自动发现)/ 黑名单 / 存储后端
+    options/        设置:Pipeline 接入(单开关,默认开,勾选即存,端口自动发现)/ 黑名单 / 存储后端
   collector/        filter(黑名单+噪音) · tabState(分组/去重) · history(组装 Record) · timelineSelection(时间线区间选择+URL匹配标签)
   processor/        preview(正文预览截断)   # 总结已移交 DesktopHub,插件不含 LLM
   storage/          adapter(接口) · local(IndexedDB/Dexie:records 表 + 独立 contents 正文表) · file(导出) · remote(HTTP 推送 pushVisit) · remoteConfig(读推送配置)
@@ -96,7 +93,7 @@ git push origin HEAD                 # 用 +pr 创建 PR,+merge 合并
 
 > **入口必须在 `src/entrypoints/`**:PLAN 里画的 `src/background/`、`src/hub/` 是逻辑分层示意;WXT 实际要求所有入口集中在 `src/entrypoints/`,引擎层(collector/processor/storage/models)才是普通模块。
 
-> **ingest-server 推送契约**:**默认开启**(options 可关);端口**自动发现**——`probeDesktopHub`(命名沿用历史,实际探测 ViewMindPipeline ingest-server)按序探测 `GET http://127.0.0.1:{8787,8788,8789}/health`,缓存第一个响应的端口(逻辑在 [`storage/remote.ts`](src/storage/remote.ts);background 用长生命周期单例缓存,避免每次采集重探,推失败清缓存重探)。每条采集落库后 `POST http://127.0.0.1:{port}/ingest/browser`,body = `{ "records": [{ "record": <ContextRecord>, "markdown": <正文,可选> }] }`;有 `apiKey` 则带 `Authorization: Bearer`。单向推送、best-effort(失败只 warn 不影响本地)。黑名单/噪音页不入库也不推送(ingest-server 端 `isSystemUrl` 还会兜底拦 Chrome `warmup.html` / `chrome://*` / `about:*`)。
+> **ingest-server 推送契约**:**默认开启**(options 可关);端口**自动发现**——`probeIngestServer` 按序探测 `GET http://127.0.0.1:{8787,8788,8789}/health`,缓存第一个响应的端口(逻辑在 [`storage/remote.ts`](src/storage/remote.ts);background 用长生命周期单例缓存,避免每次采集重探,推失败清缓存重探)。每条采集落库后 `POST http://127.0.0.1:{port}/ingest/browser`,body = `{ "records": [{ "record": <ContextRecord>, "markdown": <正文,可选> }] }`;有 `apiKey` 则带 `Authorization: Bearer`。单向推送、best-effort(失败只 warn 不影响本地)。黑名单/噪音页不入库也不推送(ingest-server 端 `isSystemUrl` 还会兜底拦 Chrome `warmup.html` / `chrome://*` / `about:*`)。
 
 > **主控台入口 / 点图标没反应**:主控台是普通扩展页 `hub.html`(入口目录 `entrypoints/hub`),**有意不接管新标签页**(早期接管过,老大反馈烦,已废)。manifest 不设 `default_popup`,点扩展图标由 background 的 `chrome.action.onClicked` 打开 `hub.html`。改回 popup 或加 onClicked 时注意二者互斥:有 `default_popup` 则 `onClicked` 不触发。
 

@@ -7,7 +7,7 @@ import "./ContextTimeline.css";
 
 const storage = new LocalStorageAdapter();
 
-/** 视图 B：历史浏览结构化沉淀时间线 + 按时间点批量关闭对应仍打开的标签。总结/聚合在 DesktopHub 完成。 */
+/** 视图 B：历史浏览结构化沉淀时间线 + 按时间点批量关闭对应仍打开的标签。总结/聚合在 ViewMindPipeline pipeline/extraction 层完成。 */
 export function ContextTimeline() {
   const [records, setRecords] = useState<ContextRecord[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());

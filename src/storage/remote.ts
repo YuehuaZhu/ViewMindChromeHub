@@ -11,7 +11,7 @@ export interface RemoteConfig {
   apiKey?: string;
 }
 
-/** 推送给 DesktopHub 的载荷:一条 ContextRecord + 正文 + 设备身份。 */
+/** 推送给 ViewMindPipeline ingest-server 的载荷:一条 ContextRecord + 正文 + 设备身份。 */
 export interface PushPayload {
   record: ContextRecord;
   markdown?: string;
@@ -21,9 +21,9 @@ export interface PushPayload {
 
 /**
  * 探测候选端口，返回第一个 `GET /health` 通的端口；都不通返回 undefined。
- * 设置页与 adapter 共用，用户无感地自动发现本机 ingest-server。
+ * 设置页与 adapter 共用，用户无感地自动发现本机 ViewMindPipeline ingest-server。
  */
-export async function probeDesktopHub(
+export async function probeIngestServer(
   host: string = DEFAULT_HOST,
   ports: number[] = DEFAULT_PORTS,
 ): Promise<number | undefined> {
@@ -42,10 +42,10 @@ export async function probeDesktopHub(
 }
 
 /**
- * 远程 HTTP 上报 —— 把采集到的 context 单向推送到本机 DesktopHub。
- * 端口自动发现(无需手填端点);失败 best-effort,由调用方处理。总结/聚合在 DesktopHub 完成。
+ * 远程 HTTP 上报 —— 把采集到的 context 单向推送到本机 ViewMindPipeline ingest-server。
+ * 端口自动发现(无需手填端点);失败 best-effort,由调用方处理。
  *
- * 契约:POST http://host:port/records,body = { records: PushPayload[] }。
+ * 契约:POST http://host:port/ingest/browser,body = { records: PushPayload[] }。
  */
 export class RemoteStorageAdapter {
   readonly name = "remote";
@@ -70,7 +70,7 @@ export class RemoteStorageAdapter {
   /** 解析目标端口:有缓存用缓存,否则探测候选表。 */
   async resolvePort(): Promise<number | undefined> {
     if (this.livePort !== undefined) return this.livePort;
-    this.livePort = await probeDesktopHub(this.host, this.ports);
+    this.livePort = await probeIngestServer(this.host, this.ports);
     return this.livePort;
   }
 
