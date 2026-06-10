@@ -4,14 +4,18 @@ import TurndownService from "turndown";
 import type { Interaction, InteractionType } from "../models/context";
 import type { VisitSignal } from "../collector/history";
 import { sha256Hex } from "../collector/fingerprint";
+import { gateContent, sanitizeMarkdown } from "../processor/sanitize";
 
-/** 在 document 克隆上跑 Readability（会改 DOM），抽正文转 Markdown；失败返回 undefined。 */
-function extractMarkdown(): string | undefined {
+/**
+ * 在 document 克隆上跑 Readability（会改 DOM），抽正文转 Markdown，再过清洗规则；
+ * 失败 / 无正文返回 undefined。是否「该抽」由调用方先用 gateContent 判定（非文章页/墙/未就绪）。
+ */
+function extractArticleMarkdown(): string | undefined {
   try {
     const article = new Readability(document.cloneNode(true) as Document).parse();
     if (!article?.content) return undefined;
     const md = new TurndownService({ headingStyle: "atx" }).turndown(article.content);
-    return md.trim() || undefined;
+    return sanitizeMarkdown(md).trim() || undefined;
   } catch {
     return undefined;
   }
@@ -125,10 +129,13 @@ export default defineContentScript({
     });
 
     setTimeout(() => {
+      // 正文经 gateContent 把关：非文章页(UI 标签堆叠)/验证墙/SPA 未水合(loading 占位)
+      // → 正文留空，交 Pipeline 的 Jina Reader 异步兜底；放行的页才抽正文并清洗。
+      // 不为 SPA 推迟首次 push：visit/dwell 仍在 SETTLE_MS 准点锁定，避免关页丢记录。
       const signal: VisitSignal = {
         url: location.href,
         title: document.title,
-        rawContent: extractMarkdown(),
+        rawContent: gateContent(document).ok ? extractArticleMarkdown() : undefined,
         interactions,
         referrer: document.referrer || undefined,
         scrollDepthPct: maxScrollDepth,
